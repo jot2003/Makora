@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Zap, Upload, Loader2, Radio, Mic, FileAudio, Sparkles } from 'lucide-react'
 import { cn, API_BASE as API } from '@/lib/utils'
 import { Select } from '@/components/ui/Select'
+import { useAuth } from '@/stores/useAuth'
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const { getHeaders } = useAuth()
   const { refreshMeetings } = useOutletContext<{ refreshMeetings: () => void }>()
   const [newName, setNewName] = useState('')
   const [mode, setMode] = useState('interview')
@@ -21,7 +23,7 @@ export default function Dashboard() {
     try {
       const r = await fetch(`${API}/api/meetings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getHeaders() },
         body: JSON.stringify({ name, mode }),
       })
       if (r.ok) {
@@ -47,7 +49,7 @@ export default function Dashboard() {
     if (newName.trim()) formData.append('meeting_name', newName.trim())
 
     try {
-      const r = await fetch(`${API}/api/upload`, { method: 'POST', body: formData })
+      const r = await fetch(`${API}/api/upload`, { method: 'POST', body: formData, headers: getHeaders() })
       if (r.ok) {
         const data = await r.json()
         setUploadResult({

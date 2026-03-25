@@ -17,30 +17,37 @@ interface WebSocketState {
   send: (msg: WSMessage) => void
 }
 
-const DEFAULT_URL = `${WS_BASE || `ws://${window.location.host}`}/ws/meeting`
+function buildWsUrl(base?: string): string {
+  const url = base || `${WS_BASE || `ws://${window.location.host}`}/ws/meeting`
+  const token = localStorage.getItem('token')
+  if (!token) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}token=${encodeURIComponent(token)}`
+}
+
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 10000]
 
 let _reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let _pingInterval: ReturnType<typeof setInterval> | null = null
 let _reconnectAttempt = 0
 let _intentionalClose = false
-let _lastUrl = DEFAULT_URL
+let _lastBaseUrl = ''
 
 export const useWebSocket = create<WebSocketState>((set, get) => ({
   ws: null,
   status: 'disconnected',
   lastMessage: null,
 
-  connect: (url = DEFAULT_URL) => {
+  connect: (url?: string) => {
     const existing = get().ws
     if (existing && existing.readyState <= WebSocket.OPEN) return
 
     _intentionalClose = false
-    _lastUrl = url
+    _lastBaseUrl = url || ''
     if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null }
 
     set({ status: 'connecting' })
-    const ws = new WebSocket(url)
+    const ws = new WebSocket(buildWsUrl(url))
 
     ws.onopen = () => {
       _reconnectAttempt = 0
@@ -58,7 +65,7 @@ export const useWebSocket = create<WebSocketState>((set, get) => ({
         _reconnectAttempt++
         _reconnectTimer = setTimeout(() => {
           _reconnectTimer = null
-          if (!_intentionalClose) get().connect(_lastUrl)
+          if (!_intentionalClose) get().connect(_lastBaseUrl || undefined)
         }, delay)
       }
     }

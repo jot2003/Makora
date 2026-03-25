@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Loader2, Bot, User, Sparkles } from 'lucide-react'
 import { cn, API_BASE as API } from '@/lib/utils'
+import { useAuth } from '@/stores/useAuth'
 
 interface ChatMessage {
   id: string
@@ -17,6 +18,7 @@ const SUGGESTIONS = [
 ]
 
 export default function ChatPage() {
+  const { getHeaders } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -38,7 +40,7 @@ export default function ChatPage() {
     try {
       const r = await fetch(`${API}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getHeaders() },
         body: JSON.stringify({ query }),
       })
       if (r.ok) {

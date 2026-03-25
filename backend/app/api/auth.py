@@ -1,5 +1,6 @@
 """Authentication API: register, login, OAuth, JWT."""
 
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Annotated
 
@@ -162,7 +163,7 @@ def me(user: User = Depends(get_current_user)):
 
 # ── OAuth helper ──────────────────────────────────────────────
 
-FRONTEND_URL = "http://localhost:5173"
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 
 def _frontend_callback_url(token: str | None = None, error: str | None = None) -> str:

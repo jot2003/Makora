@@ -6,16 +6,26 @@ Falls back to placeholder mode if Azure credentials are missing.
 
 import asyncio
 import json
+import sys
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from app.core.config import settings
+from app.api.auth import _decode_token
 
 router = APIRouter()
 
 
 @router.websocket("/ws/meeting")
-async def meeting_ws(ws: WebSocket):
+async def meeting_ws(ws: WebSocket, token: str = Query(default="")):
+    user_id: int | None = None
+    if token:
+        user_id = _decode_token(token)
+        if user_id is None:
+            await ws.close(code=4001, reason="Invalid or expired token")
+            return
+        print(f"  [WS] authenticated user_id={user_id}", file=sys.stderr)
+
     await ws.accept()
     session = None
     loop = asyncio.get_running_loop()

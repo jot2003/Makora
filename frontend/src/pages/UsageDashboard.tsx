@@ -7,6 +7,7 @@ import {
   Coins, Zap, Clock, Hash, ChevronDown, RefreshCw,
 } from 'lucide-react'
 import { cn, API_BASE as API } from '@/lib/utils'
+import { useAuth } from '@/stores/useAuth'
 
 interface SummaryData {
   totals: {
@@ -90,6 +91,7 @@ function SummaryCard({ icon: Icon, label, value, sub, color }: {
 }
 
 export default function UsageDashboard() {
+  const { getHeaders } = useAuth()
   const [days, setDays] = useState('30')
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [daily, setDaily] = useState<DailyEntry[]>([])
@@ -99,11 +101,12 @@ export default function UsageDashboard() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
+    const h = getHeaders()
     try {
       const [summaryRes, dailyRes, recentRes] = await Promise.all([
-        fetch(`${API}/api/usage/summary?days=${days}`),
-        fetch(`${API}/api/usage/daily?days=${days}`),
-        fetch(`${API}/api/usage/recent?limit=30`),
+        fetch(`${API}/api/usage/summary?days=${days}`, { headers: h }),
+        fetch(`${API}/api/usage/daily?days=${days}`, { headers: h }),
+        fetch(`${API}/api/usage/recent?limit=30`, { headers: h }),
       ])
       if (summaryRes.ok) setSummary(await summaryRes.json())
       if (dailyRes.ok) {

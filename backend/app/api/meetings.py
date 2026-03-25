@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.models.database import Meeting, TranscriptEntry, get_db
+from app.models.database import Meeting, TranscriptEntry, User, get_db
 from app.models.schemas import MeetingCreate, MeetingResponse, MeetingUpdate, TranscriptEntryResponse
 from app.api.auth import get_optional_user
 
@@ -16,6 +16,16 @@ router = APIRouter(prefix="/api/meetings", tags=["meetings"])
 def _meeting_id() -> str:
     now = datetime.now()
     return now.strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:6]
+
+
+def _get_owned_meeting(meeting_id: str, user: User | None, db: Session) -> Meeting:
+    """Fetch meeting and verify the caller has access."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(404, "Meeting not found")
+    if user and meeting.user_id and meeting.user_id != user.id:
+        raise HTTPException(403, "Access denied")
+    return meeting
 
 
 @router.post("", response_model=MeetingResponse, status_code=201)
@@ -45,18 +55,16 @@ def list_meetings(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/{meeting_id}", response_model=MeetingResponse)
-def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
-        raise HTTPException(404, "Meeting not found")
+def get_meeting(meeting_id: str, request: Request, db: Session = Depends(get_db)):
+    user = get_optional_user(request, db)
+    meeting = _get_owned_meeting(meeting_id, user, db)
     return _to_response(meeting)
 
 
 @router.patch("/{meeting_id}", response_model=MeetingResponse)
-def update_meeting(meeting_id: str, body: MeetingUpdate, db: Session = Depends(get_db)):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
-        raise HTTPException(404, "Meeting not found")
+def update_meeting(meeting_id: str, body: MeetingUpdate, request: Request, db: Session = Depends(get_db)):
+    user = get_optional_user(request, db)
+    meeting = _get_owned_meeting(meeting_id, user, db)
     if body.name is not None:
         meeting.name = body.name
     if body.mode is not None:
@@ -70,19 +78,17 @@ def update_meeting(meeting_id: str, body: MeetingUpdate, db: Session = Depends(g
 
 
 @router.delete("/{meeting_id}", status_code=204)
-def delete_meeting(meeting_id: str, db: Session = Depends(get_db)):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
-        raise HTTPException(404, "Meeting not found")
+def delete_meeting(meeting_id: str, request: Request, db: Session = Depends(get_db)):
+    user = get_optional_user(request, db)
+    meeting = _get_owned_meeting(meeting_id, user, db)
     db.delete(meeting)
     db.commit()
 
 
 @router.get("/{meeting_id}/transcript", response_model=list[TranscriptEntryResponse])
-def get_transcript(meeting_id: str, source: str | None = None, db: Session = Depends(get_db)):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
-        raise HTTPException(404, "Meeting not found")
+def get_transcript(meeting_id: str, request: Request, source: str | None = None, db: Session = Depends(get_db)):
+    user = get_optional_user(request, db)
+    _get_owned_meeting(meeting_id, user, db)
     q = db.query(TranscriptEntry).filter(TranscriptEntry.meeting_id == meeting_id)
     if source:
         q = q.filter(TranscriptEntry.source == source)
@@ -91,10 +97,9 @@ def get_transcript(meeting_id: str, source: str | None = None, db: Session = Dep
 
 
 @router.get("/{meeting_id}/transcript/export")
-def export_transcript(meeting_id: str, format: str = "txt", db: Session = Depends(get_db)):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
-        raise HTTPException(404, "Meeting not found")
+def export_transcript(meeting_id: str, request: Request, format: str = "txt", db: Session = Depends(get_db)):
+    user = get_optional_user(request, db)
+    meeting = _get_owned_meeting(meeting_id, user, db)
     entries = (
         db.query(TranscriptEntry)
         .filter(TranscriptEntry.meeting_id == meeting_id)
