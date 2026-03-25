@@ -5,7 +5,7 @@ import {
   Plus, Mic, FileAudio, MessageSquare, PanelLeftClose, PanelLeft,
   Trash2, Settings, LogOut, ChevronDown, BarChart3,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, API_BASE as API } from '@/lib/utils'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { Select } from '@/components/ui/Select'
@@ -19,8 +19,6 @@ export interface Meeting {
   created_at: string
   transcript_count: number
 }
-
-const API = 'http://localhost:8000'
 
 interface SidebarProps {
   meetings: Meeting[]

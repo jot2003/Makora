@@ -2,10 +2,8 @@ import { useState, useRef } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Zap, Upload, Loader2, Radio, Mic, FileAudio, Sparkles } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, API_BASE as API } from '@/lib/utils'
 import { Select } from '@/components/ui/Select'
-
-const API = 'http://localhost:8000'
 
 export default function Dashboard() {
   const navigate = useNavigate()

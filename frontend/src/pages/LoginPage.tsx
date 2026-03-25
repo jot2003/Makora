@@ -2,10 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Zap, Mail, Lock, Loader2, Github, Eye, EyeOff } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, API_BASE as API } from '@/lib/utils'
 import { useAuth } from '@/stores/useAuth'
-
-const API = 'http://localhost:8000'
 
 export default function LoginPage() {
   const navigate = useNavigate()

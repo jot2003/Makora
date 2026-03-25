@@ -6,9 +6,7 @@ import {
 import {
   Coins, Zap, Clock, Hash, ChevronDown, RefreshCw,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-
-const API = 'http://localhost:8000'
+import { cn, API_BASE as API } from '@/lib/utils'
 
 interface SummaryData {
   totals: {

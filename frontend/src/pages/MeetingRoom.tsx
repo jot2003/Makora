@@ -8,14 +8,13 @@ import {
   ChevronDown, User, Building2, Languages, StickyNote,
   Upload, CheckCircle2, XCircle, Sparkles, Copy, Check,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, API_BASE as API } from '@/lib/utils'
 import { Badge } from '@/components/ui/Badge'
 import { Select } from '@/components/ui/Select'
 import { useWebSocket } from '@/stores/useWebSocket'
 import { useMeeting, type MeetingMode } from '@/stores/useMeeting'
 import { useAuth } from '@/stores/useAuth'
 
-const API = 'http://localhost:8000'
 type RightTab = 'context' | 'summary' | 'actions' | 'timeline' | 'decisions'
 
 interface MeetingData { name: string; mode: string; status: string; transcript_count: number }

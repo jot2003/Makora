@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Loader2, Bot, User, Sparkles } from 'lucide-react'
-import { cn } from '@/lib/utils'
-
-const API = 'http://localhost:8000'
+import { cn, API_BASE as API } from '@/lib/utils'
 
 interface ChatMessage {
   id: string

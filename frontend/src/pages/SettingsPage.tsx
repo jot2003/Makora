@@ -2,10 +2,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Settings, Plus, Trash2, Check, X, Loader2, Zap, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/stores/useAuth'
-import { cn } from '@/lib/utils'
+import { cn, API_BASE as API } from '@/lib/utils'
 import { Select } from '@/components/ui/Select'
-
-const API = 'http://localhost:8000'
 
 interface UserSettingsData {
   overlay_font_size: number

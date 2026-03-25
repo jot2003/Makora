@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-
-const API = 'http://localhost:8000'
+import { API_BASE as API } from '@/lib/utils'
 
 interface User {
   id: number

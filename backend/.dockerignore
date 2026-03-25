@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+data/
+tests/
+.env
+.env.local
+ffmpeg*
+*.exe
+*.zip

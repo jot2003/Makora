@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar, type Meeting } from './Sidebar'
 import { useAuth } from '@/stores/useAuth'
-
-const API = 'http://localhost:8000'
+import { API_BASE as API } from '@/lib/utils'
 
 export function AppLayout() {
   const [meetings, setMeetings] = useState<Meeting[]>([])

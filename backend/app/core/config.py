@@ -84,7 +84,11 @@ class Settings:
     OAUTH_REDIRECT_BASE: str = os.getenv("OAUTH_REDIRECT_BASE", "http://localhost:8000")
 
     DATABASE_URL: str = f"sqlite:///{DB_PATH}"
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: list[str] = [
+        o.strip()
+        for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+        if o.strip()
+    ]
 
     DEFAULT_LANGUAGE: str = "ja-JP"
     ENERGY_THRESHOLD: int = 200

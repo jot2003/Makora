@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { WS_BASE } from '@/lib/utils'
 
 export type WSStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
@@ -16,7 +17,7 @@ interface WebSocketState {
   send: (msg: WSMessage) => void
 }
 
-const DEFAULT_URL = 'ws://localhost:8000/ws/meeting'
+const DEFAULT_URL = `${WS_BASE || `ws://${window.location.host}`}/ws/meeting`
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 10000]
 
 let _reconnectTimer: ReturnType<typeof setTimeout> | null = null
