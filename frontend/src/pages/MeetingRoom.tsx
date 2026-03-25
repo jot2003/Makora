@@ -67,7 +67,7 @@ export default function MeetingRoom() {
         }
       }
     }).catch(() => {})
-    fetch(`${API}/api/settings/models`).then(r => r.ok ? r.json() : []).then((models: { id: string; label: string }[]) => {
+    fetch(`${API}/api/settings/models`, { headers }).then(r => r.ok ? r.json() : []).then((models: { id: string; label: string }[]) => {
       if (models.length > 0) { setAvailableModels(models); setActiveModel(models[0].id) }
     }).catch(() => {})
     return () => {

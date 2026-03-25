@@ -4,7 +4,7 @@ import json
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -17,11 +17,28 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 @router.get("/models")
-def list_models():
-    """Return available LLM models, non-reasoning first for better defaults."""
+def list_models(request: Request, db: Session = Depends(get_db)):
+    """Return available LLM models from env + user's DB providers."""
+    from app.api.auth import get_optional_user
     valid = [m for m in app_settings.MODEL_REGISTRY if m.is_valid()]
     valid.sort(key=lambda m: m.is_reasoning)
-    return [m.to_dict() for m in valid]
+    result = [m.to_dict() for m in valid]
+
+    user = get_optional_user(request, db)
+    if user:
+        db_providers = db.query(AIProvider).filter(
+            AIProvider.user_id == user.id,
+            AIProvider.is_active == True,
+        ).all()
+        existing_ids = {r["id"] for r in result}
+        for p in db_providers:
+            if p.deployment and p.api_key and p.endpoint and p.deployment not in existing_ids:
+                result.append({
+                    "id": f"db:{p.id}",
+                    "label": p.name or p.deployment,
+                    "is_reasoning": False,
+                })
+    return result
 
 
 # ── User Settings ─────────────────────────────────────────────

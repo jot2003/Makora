@@ -331,7 +331,10 @@ class MeetingSession:
         self._llm.enqueue(text, romaji, "")
 
     def switch_model(self, model_id: str) -> str:
-        """Switch the LLM to a different model from the registry."""
+        """Switch the LLM to a model from registry or a DB provider (db:<id>)."""
+        if model_id.startswith("db:"):
+            return self._switch_to_db_provider(int(model_id.split(":", 1)[1]))
+
         for m in settings.MODEL_REGISTRY:
             if m.deployment == model_id and m.is_valid():
                 if self._llm:
@@ -340,6 +343,22 @@ class MeetingSession:
                 return m.deployment
         self._emit({"type": "error", "message": f"Model {model_id} not found"})
         return self._llm.get_active_model() if self._llm else ""
+
+    def _switch_to_db_provider(self, provider_id: int) -> str:
+        """Switch LLM to a user-configured provider stored in DB."""
+        from app.models.database import AIProvider, SessionLocal
+        db = SessionLocal()
+        try:
+            p = db.query(AIProvider).filter(AIProvider.id == provider_id).first()
+            if not p or not p.api_key or not p.endpoint or not p.deployment:
+                self._emit({"type": "error", "message": "Provider not found or incomplete"})
+                return self._llm.get_active_model() if self._llm else ""
+            if self._llm:
+                self._llm.switch_model(p.api_key, p.endpoint, p.deployment)
+                self._emit({"type": "status", "message": f"Switched to {p.name or p.deployment}"})
+            return p.deployment
+        finally:
+            db.close()
 
     def set_suggestions_enabled(self, enabled: bool):
         self._suggestions_enabled = enabled
