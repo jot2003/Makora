@@ -1,0 +1,77 @@
+[HÀ NỘI – BA ĐÌNH] TUYỂN DỤNG AI ENGINEER & FULLSTACK ENGINEER (ONSITE)
+
+📍 Địa điểm làm việc:
+Kim Mã, Ngọc Khánh, Ba Đình, Hà Nội
+
+⏰ Thời gian làm việc: Thứ 2 – Thứ 6 (8:00 – 17:00)
+❌ Làm việc onsite 100% tại Hà Nội (Không remote)
+
+
+---
+
+🔹 1️⃣ AI ENGINEER (01 người)
+
+💰 Mức lương: Thỏa thuận theo năng lực
+
+🔥 YÊU CẦU BẮT BUỘC
+
+• Tối thiểu 3 năm kinh nghiệm
+• Có kinh nghiệm lập trình Python
+• Có kinh nghiệm sử dụng LLM API (OpenAI, Claude, v.v.)
+• Có kinh nghiệm tích hợp API vào sản phẩm thực tế
+
+⭐ ƯU TIÊN
+
+• Fine-tuning
+• HuggingFace
+• LangChain / LlamaIndex
+• Xây dựng hệ thống RAG
+
+
+---
+
+🔹 2️⃣ FULLSTACK ENGINEER (02 người)
+
+💰 Mức lương: Thỏa thuận theo năng lực
+
+🔥 YÊU CẦU BẮT BUỘC
+
+• Tối thiểu 3 năm kinh nghiệm
+• Frontend: HTML, CSS, JavaScript, React
+• Backend: Có kinh nghiệm phát triển backend
+
+⭐ ƯU TIÊN
+
+• Next.js / Typescript
+• Python / FastAPI
+• AWS / Azure
+• Có thể làm việc theo Agile hoặc Waterfall
+
+
+---
+
+🎯 THÔNG TIN KHÁC
+
+• Giới tính: Không yêu cầu
+• Độ tuổi: Không giới hạn
+• Thử việc 2 tháng (thỏa thuận 100% hoặc 85% lương)
+• Tăng lương định kỳ hàng năm
+
+
+---
+
+🎁 PHÚC LỢI
+
+• Hỗ trợ phí gửi xe
+• Phụ cấp ăn trưa
+• Thưởng Tết (lương tháng 13 – thương lượng theo năm)
+
+
+---
+
+👥 QUY MÔ TEAM
+
+• 2 người Nhật
+• 1 Sales (biết tiếng Nhật)
+• 1 AI Engineer
+• 2 Fullstack Engineer

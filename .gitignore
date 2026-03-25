@@ -1,0 +1,62 @@
+# Environment & secrets
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.pytest_cache/
+.mypy_cache/
+*.pyo
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Frontend build
+frontend/dist/
+frontend/.vite/
+
+# Backend data (runtime generated)
+backend/data/
+backend/ffmpeg.zip
+backend/ffmpeg.exe
+backend/ffprobe.exe
+backend/ffmpeg*/
+
+# Debug logs
+debug-*.log
+*.log
+
+# Sessions (runtime data)
+sessions/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Electron
+frontend/dist-electron/
+frontend/release/
+
+# Cursor / agent artifacts
+.cursor/
+agent-transcripts/
+mcps/
+terminals/
+assets/

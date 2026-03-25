@@ -1,0 +1,100 @@
+\documentclass[a4paper,10pt]{article}
+
+\usepackage{fontspec}
+\usepackage[top=0.6in,bottom=0.6in,left=0.65in,right=0.65in]{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\setmainfont{Times New Roman}
+
+\definecolor{linkblue}{HTML}{1a5276}
+\hypersetup{colorlinks=true, urlcolor=linkblue}
+
+\titleformat{\section}{\large\bfseries\scshape}{}{0em}{}[\vspace{-1pt}\titlerule]
+\titlespacing*{\section}{0pt}{7pt}{4pt}
+
+\pagestyle{empty}
+
+\setlist[itemize]{nosep, left=0pt, label=\textbullet, itemsep=1.5pt, topsep=2pt}
+
+\begin{document}
+
+% ===== HEADER =====
+\begin{center}
+{\LARGE\bfseries HOÀNG KIM TRÍ THÀNH}\\[4pt]
+{\small Long Biên, Hà Nội \enspace\textbar\enspace 0972 807 420 \enspace\textbar\enspace hoangkimtrithanh@gmail.com \enspace\textbar\enspace \href{https://github.com/jot2003}{github.com/jot2003}}
+\end{center}
+
+\vspace{-2pt}
+
+% ===== MỤC TIÊU =====
+\section{Mục tiêu nghề nghiệp}
+Tốt nghiệp ngành CNTT tại Đại học Bách khoa Hà Nội (chương trình Việt-Nhật), có kinh nghiệm làm việc thực tế với các hệ thống AI. Quan tâm đến lĩnh vực xử lý ngôn ngữ tự nhiên và ứng dụng mô hình ngôn ngữ lớn vào sản phẩm. Mong muốn được đóng góp và học hỏi thêm tại vị trí AI Engineer.
+
+% ===== HỌC VẤN =====
+\section{Học vấn}
+\textbf{Đại học Bách khoa Hà Nội (HUST)} \hfill 2021 -- 2026\\
+Cử nhân Công nghệ Thông tin -- Chương trình Việt-Nhật (HEDSPI), Trường CNTT\&TT (SoICT)
+
+% ===== KINH NGHIỆM =====
+\section{Kinh nghiệm}
+
+\textbf{Ashilla Vietnam --- AI Engineer} \hfill 7/2024 -- 2/2025 \textit{(8 tháng)}\\
+\textit{Bắt đầu từ vị trí thực tập, được chuyển sang chính thức sau 2 tháng}
+\begin{itemize}
+  \item Tham gia phát triển hệ thống nhận diện hành vi bất thường trong video giám sát (bạo lực, ngã, xâm nhập) sử dụng mô hình SlowFast, đạt accuracy khoảng 87\%
+  \item Phụ trách thu thập và gán nhãn dữ liệu (\texttildelow3.000 video, 8 loại hành vi), huấn luyện và đánh giá mô hình
+  \item Viết báo cáo kỹ thuật hàng tuần, trình bày kết quả và đề xuất cải tiến cho team
+\end{itemize}
+
+\vspace{3pt}
+
+\textbf{AI4LIFE Lab, HUST --- Research Assistant} \hfill 2023 -- 2024\\
+\textit{Hướng dẫn: PGS.TS. Nguyễn Phi Lê}
+\begin{itemize}
+  \item Tham gia nghiên cứu ứng dụng Deep Learning trong Computer Vision (phát hiện, phân loại đối tượng)
+  \item Đọc paper, tổng hợp và thực nghiệm lại các phương pháp theo hướng dẫn của nhóm nghiên cứu
+\end{itemize}
+
+% ===== DỰ ÁN =====
+\section{Dự án}
+
+\textbf{VANI Copilot --- Hệ thống AI hỗ trợ chăm sóc khách hàng} \hfill 2025 -- 2026\\
+\textit{Python, FastAPI, React, LangChain, FAISS, Docker}
+\begin{itemize}
+  \item Xây dựng hệ thống AI gợi ý câu trả lời cho nhân viên CSKH thương mại điện tử, sử dụng kỹ thuật RAG (truy xuất thông tin từ knowledge base rồi đưa vào LLM để sinh câu trả lời)
+  \item Fine-tuning mô hình embedding, LLM (Llama 3.1 8B với QLoRA) và re-ranker để cải thiện chất lượng cho tiếng Việt
+  \item Xây dựng luồng xử lý tự động bằng LangChain: phân loại ý định khách hàng, tìm kiếm thông tin, tra cứu đơn hàng
+  \item Triển khai bằng Docker Compose: FastAPI backend + React frontend; tích hợp Azure OpenAI
+\end{itemize}
+
+\vspace{3pt}
+
+\textbf{Meeting Copilot --- Trợ lý cuộc họp AI thời gian thực} \hfill 2025\\
+\textit{Python, FastAPI, React, Electron, Azure Speech/OpenAI, FAISS}
+\begin{itemize}
+  \item Xây dựng ứng dụng desktop hỗ trợ cuộc họp: chuyển giọng nói thành văn bản theo thời gian thực (Azure Speech), dịch thuật và gợi ý nội dung bằng LLM
+  \item Tích hợp RAG để tìm kiếm lại nội dung các cuộc họp trước; tự động tóm tắt và trích xuất nội dung quan trọng sau cuộc họp
+  \item Phát triển ứng dụng desktop đa nền tảng bằng Electron, giao tiếp real-time qua WebSocket
+\end{itemize}
+
+% ===== KỸ NĂNG =====
+\section{Kỹ năng}
+\begin{itemize}
+  \item \textbf{Ngôn ngữ lập trình:} Python, JavaScript/TypeScript, C/C++
+  \item \textbf{AI/ML:} PyTorch, HuggingFace Transformers, LangChain, FAISS, fine-tuning (QLoRA)
+  \item \textbf{Backend \& Triển khai:} FastAPI, Docker, WebSocket, SQLAlchemy
+  \item \textbf{Frontend:} React, Tailwind CSS, Electron
+  \item \textbf{Công cụ:} Git, Linux, Azure OpenAI/Speech, \LaTeX
+\end{itemize}
+
+% ===== CHỨNG CHỈ =====
+\section{Chứng chỉ \& Ngoại ngữ}
+\begin{itemize}
+  \item \textbf{Tiếng Nhật:} JLPT N2 (12/2025)
+  \item \textbf{Tiếng Anh:} IELTS 7.0 --- Đọc tài liệu kỹ thuật và giao tiếp công việc thành thạo
+\end{itemize}
+
+\end{document}
