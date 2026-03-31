@@ -111,7 +111,8 @@ class StreamingSTT:
             subscription=self._speech_key, region=self._speech_region,
         )
         trans_config.speech_recognition_language = language
-        trans_config.add_target_language("vi")
+        target_lang = "en" if language.startswith("vi") else "vi"
+        trans_config.add_target_language(target_lang)
         trans_config.set_profanity(speechsdk.ProfanityOption.Raw)
         try:
             trans_config.set_property(
@@ -264,23 +265,27 @@ class StreamingSTT:
 
     # -- Shadow translation --
 
+    @property
+    def _translation_target_key(self) -> str:
+        return "en" if self._source_language.startswith("vi") else "vi"
+
     def _on_shadow_translating(self, evt):
         try:
             translations = evt.result.translations
-            vi = translations.get("vi", "")
-            if vi:
+            translated = translations.get(self._translation_target_key, "")
+            if translated:
                 speaker_id = self._latest_speaker_for_translation.get("lb", "Unknown")
-                self._on_translation(vi, speaker_id)
+                self._on_translation(translated, speaker_id)
         except Exception as e:
             print(f"  [SHADOW LIVE ERR] {e}", file=sys.stderr)
 
     def _on_shadow_translated(self, evt):
         try:
             if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                vi = evt.result.translations.get("vi", "")
-                if vi:
+                translated = evt.result.translations.get(self._translation_target_key, "")
+                if translated:
                     speaker_id = self._latest_speaker_for_translation.get("lb", "Unknown")
-                    self._on_translation(vi, speaker_id)
+                    self._on_translation(translated, speaker_id)
         except Exception as e:
             print(f"  [SHADOW FINAL ERR] {e}", file=sys.stderr)
 
@@ -340,8 +345,9 @@ class StreamingSTT:
     def _do_rest_translate(self, text: str, speaker_id: str):
         try:
             lang_short = self._source_language.split("-")[0]
+            target = "en" if lang_short == "vi" else "vi"
             url = "https://api.cognitive.microsofttranslator.com/translate"
-            params = {"api-version": "3.0", "from": lang_short, "to": "vi"}
+            params = {"api-version": "3.0", "from": lang_short, "to": target}
             headers = {
                 "Ocp-Apim-Subscription-Key": self._translator_key,
                 "Ocp-Apim-Subscription-Region": self._translator_region,
