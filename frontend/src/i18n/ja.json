@@ -78,7 +78,13 @@
     "meaning": "意味",
     "sessionNotes": "セッションメモ",
     "sessionNotesSub": "このセッションの一般メモ",
-    "notesPlaceholder": "議題、質問事項..."
+    "notesPlaceholder": "議題、質問事項...",
+    "pregenTitle": "準備済み回答",
+    "pregenCount": "質問",
+    "pregenAddPlaceholder": "質問を追加...",
+    "pregenLoadDefaults": "デフォルト読込",
+    "pregenGenerate": "全て生成",
+    "pregenEmpty": "準備済みの質問はまだありません"
   },
   "tabs": {
     "context": "コンテキスト",

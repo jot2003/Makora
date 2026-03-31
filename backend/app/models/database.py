@@ -172,6 +172,7 @@ class PreGeneratedAnswer(Base):
     answer_vi = Column(Text, default="")
     embedding = Column(LargeBinary, nullable=True)
     jp_level = Column(String, default="natural")
+    language = Column(String, default="ja-JP")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 

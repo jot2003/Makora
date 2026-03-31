@@ -115,3 +115,26 @@ class SearchResult(BaseModel):
     time: str = ""
     text: str = ""
     score: float = 0.0
+
+
+# ── PreGen Questions ─────────────────────────────────────────
+
+class PreGenQuestionCreate(BaseModel):
+    question: str
+    language: str = "ja-JP"
+
+
+class PreGenQuestionUpdate(BaseModel):
+    question: str | None = None
+    language: str | None = None
+
+
+class PreGenQuestionResponse(BaseModel):
+    id: int
+    question: str
+    language: str
+    has_answer: bool = False
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

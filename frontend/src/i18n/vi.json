@@ -78,7 +78,13 @@
     "meaning": "Nghĩa",
     "sessionNotes": "Ghi chú phiên",
     "sessionNotesSub": "Ghi chú chung cho phiên này",
-    "notesPlaceholder": "Chủ đề, câu hỏi cần hỏi..."
+    "notesPlaceholder": "Chủ đề, câu hỏi cần hỏi...",
+    "pregenTitle": "Câu trả lời chuẩn bị sẵn",
+    "pregenCount": "câu hỏi",
+    "pregenAddPlaceholder": "Thêm câu hỏi...",
+    "pregenLoadDefaults": "Tải mặc định",
+    "pregenGenerate": "Tạo tất cả",
+    "pregenEmpty": "Chưa có câu hỏi chuẩn bị sẵn"
   },
   "tabs": {
     "context": "Ngữ cảnh",

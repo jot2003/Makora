@@ -2,6 +2,7 @@
 
 Generates answers at session start and matches incoming questions via cosine
 similarity against a local FAISS index for sub-100ms cache hits.
+Supports Japanese, English, and Vietnamese question banks.
 """
 
 import re
@@ -15,34 +16,76 @@ import numpy as np
 from app.core.config import settings
 import app.models.database as _db
 
-_COMMON_QUESTIONS_JA = [
-    "自己紹介をお願いします",
-    "志望動機を教えてください",
-    "転職理由を教えてください",
-    "あなたの強みは何ですか",
-    "あなたの弱みは何ですか",
-    "これまでの経験を教えてください",
-    "なぜこの会社を選びましたか",
-    "5年後のビジョンを教えてください",
-    "チームで働いた経験を教えてください",
-    "困難を乗り越えた経験を教えてください",
-    "前職での役割を教えてください",
-    "技術スキルを教えてください",
-    "プロジェクト管理の経験はありますか",
-    "リーダーシップの経験を教えてください",
-    "何か質問はありますか",
-]
+_COMMON_QUESTIONS = {
+    "ja": [
+        "自己紹介をお願いします",
+        "志望動機を教えてください",
+        "転職理由を教えてください",
+        "あなたの強みは何ですか",
+        "あなたの弱みは何ですか",
+        "これまでの経験を教えてください",
+        "なぜこの会社を選びましたか",
+        "5年後のビジョンを教えてください",
+        "チームで働いた経験を教えてください",
+        "困難を乗り越えた経験を教えてください",
+        "前職での役割を教えてください",
+        "技術スキルを教えてください",
+        "プロジェクト管理の経験はありますか",
+        "リーダーシップの経験を教えてください",
+        "何か質問はありますか",
+    ],
+    "en": [
+        "Tell me about yourself",
+        "Why are you interested in this position?",
+        "What are your strengths?",
+        "What are your weaknesses?",
+        "Describe a challenging project you worked on",
+        "Where do you see yourself in 5 years?",
+        "Why are you leaving your current job?",
+        "Tell me about your teamwork experience",
+        "How do you handle pressure and deadlines?",
+        "What is your greatest professional achievement?",
+        "How do you handle conflict in a team?",
+        "What motivates you at work?",
+        "Describe a time you failed and what you learned",
+        "What do you know about our company?",
+        "Do you have any questions for us?",
+    ],
+    "vi": [
+        "Hãy giới thiệu về bản thân bạn",
+        "Tại sao bạn quan tâm đến vị trí này?",
+        "Điểm mạnh của bạn là gì?",
+        "Điểm yếu của bạn là gì?",
+        "Hãy mô tả một dự án khó khăn bạn đã thực hiện",
+        "Bạn nhìn thấy mình ở đâu trong 5 năm tới?",
+        "Tại sao bạn rời công ty cũ?",
+        "Kinh nghiệm làm việc nhóm của bạn như thế nào?",
+        "Bạn xử lý áp lực và deadline như thế nào?",
+        "Thành tựu nghề nghiệp lớn nhất của bạn là gì?",
+        "Bạn giải quyết xung đột trong nhóm như thế nào?",
+        "Điều gì thúc đẩy bạn trong công việc?",
+        "Hãy kể về một lần bạn thất bại và bài học rút ra",
+        "Bạn biết gì về công ty chúng tôi?",
+        "Bạn có câu hỏi nào cho chúng tôi không?",
+    ],
+}
 
 _EMBEDDING_DIM = 1536
 _SIMILARITY_THRESHOLD = 0.82
-_VI_DELIM_RE = re.compile(r'-{2,}\s*VI\s*-{0,}')
+_VI_DELIM_RE = re.compile(r'-{2,}\s*(?:VI|EN)\s*-{0,}')
+
+
+def get_default_questions(language: str) -> list[str]:
+    prefix = language.split("-")[0].lower()
+    return list(_COMMON_QUESTIONS.get(prefix, _COMMON_QUESTIONS["en"]))
 
 
 class PreGenEngine:
     """Manages pre-generated answers with embedding-based matching."""
 
-    def __init__(self, meeting_id: str):
+    def __init__(self, meeting_id: str, language: str = "ja-JP"):
         self._meeting_id = meeting_id
+        self._language = language
         self._index = None
         self._answers: list[dict] = []
         self._lock = threading.Lock()
@@ -93,11 +136,7 @@ class PreGenEngine:
             print(f"  [PREGEN] load_from_db error: {e}", file=sys.stderr)
 
     def generate_common(self, system_prompt: str, personal_info: str = "", company_info: str = ""):
-        """Background: generate answers for common questions using own client.
-
-        Uses a separate non-streaming API client so it never emits to the
-        frontend or competes with the main LLM thread.
-        """
+        """Background: generate answers for all unanswered questions in DB."""
         if not settings.AZURE_OPENAI_KEY or not settings.AZURE_OPENAI_ENDPOINT:
             return
         embedding_model = settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT
@@ -117,21 +156,24 @@ class PreGenEngine:
             deployment = settings.AZURE_OPENAI_FAST_DEPLOYMENT or settings.AZURE_OPENAI_DEPLOYMENT
 
             db = _db.SessionLocal()
-            existing = db.query(_db.PreGeneratedAnswer.question_ja).filter(
+            rows = db.query(_db.PreGeneratedAnswer).filter(
                 _db.PreGeneratedAnswer.meeting_id == self._meeting_id,
             ).all()
-            existing_set = {q[0] for q in existing}
             db.close()
 
-            questions_to_gen = [q for q in _COMMON_QUESTIONS_JA if q not in existing_set]
+            questions_to_gen = [
+                r for r in rows
+                if not r.answer_romaji and not r.answer_vi and not r.embedding
+            ]
             if not questions_to_gen:
                 self.load_from_db()
                 return
 
             from app.services.embedding import get_embeddings
 
-            for q in questions_to_gen:
+            for row in questions_to_gen:
                 try:
+                    q = row.question_ja
                     create_kwargs = {
                         "model": deployment,
                         "messages": [
@@ -165,30 +207,24 @@ class PreGenEngine:
                     emb_bytes = emb[0].tobytes() if len(emb) > 0 else None
 
                     db = _db.SessionLocal()
-                    entry = _db.PreGeneratedAnswer(
-                        meeting_id=self._meeting_id,
-                        question_ja=q,
-                        answer_romaji=romaji,
-                        answer_vi=vi,
-                        embedding=emb_bytes,
-                    )
-                    db.add(entry)
-                    db.commit()
+                    entry = db.query(_db.PreGeneratedAnswer).get(row.id)
+                    if entry:
+                        entry.answer_romaji = romaji
+                        entry.answer_vi = vi
+                        entry.embedding = emb_bytes
+                        db.commit()
                     db.close()
                 except Exception as e:
                     print(f"  [PREGEN] gen error for '{q[:30]}': {e}", file=sys.stderr)
 
             self.load_from_db()
-            print(f"  [PREGEN] Generated {len(questions_to_gen)} new answers", file=sys.stderr)
+            print(f"  [PREGEN] Generated {len(questions_to_gen)} answers", file=sys.stderr)
 
         except Exception as e:
             print(f"  [PREGEN] generate_common error: {e}", file=sys.stderr)
 
     def match_question(self, question: str) -> Optional[dict]:
-        """Match an incoming question against pre-generated answers.
-
-        Returns dict with answer_romaji and answer_vi if match found, else None.
-        """
+        """Match an incoming question against pre-generated answers."""
         if not self._ready or self._index is None:
             return None
 

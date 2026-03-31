@@ -27,6 +27,7 @@ import app.models.database as _db_module
 _LANGUAGES = {
     "ja-JP": {"name": "Japanese", "has_romaji": True},
     "en-US": {"name": "English", "has_romaji": False},
+    "vi-VN": {"name": "Vietnamese", "has_romaji": False},
     "zh-CN": {"name": "Chinese", "has_romaji": False},
     "ko-KR": {"name": "Korean", "has_romaji": False},
 }
@@ -52,6 +53,27 @@ def _get_obvious_q_re(language: str) -> re.Pattern:
     if language.startswith("vi"):
         return _OBVIOUS_QUESTION_VI
     return _OBVIOUS_QUESTION_EN
+
+def _seed_default_questions(meeting_id: str, language: str, questions: list[str]):
+    """Insert default questions into DB if none exist for this meeting+language."""
+    try:
+        db = _db_module.SessionLocal()
+        existing = db.query(_db_module.PreGeneratedAnswer).filter(
+            _db_module.PreGeneratedAnswer.meeting_id == meeting_id,
+        ).count()
+        if existing == 0:
+            for q in questions:
+                entry = _db_module.PreGeneratedAnswer(
+                    meeting_id=meeting_id,
+                    question_ja=q,
+                    language=language,
+                )
+                db.add(entry)
+            db.commit()
+        db.close()
+    except Exception as e:
+        print(f"  [PREGEN] seed error: {e}", file=sys.stderr)
+
 
 _COST_PER_1M: dict[str, tuple[float, float]] = {
     "gpt-4o": (2.50, 10.00),
@@ -311,13 +333,15 @@ class MeetingSession:
         if not lang_info:
             return
         lang_name = lang_info["name"]
-        self._pregen = PreGenEngine(self.meeting_id)
+        self._pregen = PreGenEngine(self.meeting_id, language=language)
         sys_prompt = self._llm._build_system_prompt(lang_name)
 
         def _bg_pregen():
             try:
                 if not self._running or not self._pregen:
                     return
+                from app.services.pregen import get_default_questions
+                _seed_default_questions(self.meeting_id, language, get_default_questions(language))
                 self._pregen.load_from_db()
                 if not self._running or not self._pregen:
                     return

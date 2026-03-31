@@ -78,7 +78,13 @@
     "meaning": "Meaning",
     "sessionNotes": "Session Notes",
     "sessionNotesSub": "General notes for this session",
-    "notesPlaceholder": "Meeting agenda, topics to discuss, questions to ask..."
+    "notesPlaceholder": "Meeting agenda, topics to discuss, questions to ask...",
+    "pregenTitle": "Prepared Answers",
+    "pregenCount": "questions",
+    "pregenAddPlaceholder": "Add a question...",
+    "pregenLoadDefaults": "Load Defaults",
+    "pregenGenerate": "Generate All",
+    "pregenEmpty": "No prepared questions yet"
   },
   "tabs": {
     "context": "Context",

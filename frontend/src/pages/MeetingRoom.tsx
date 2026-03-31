@@ -61,9 +61,14 @@ export default function MeetingRoom() {
   const [glossary, setGlossary] = useState<{ id: number; jp: string; reading: string; vi: string }[]>([])
   const [newGlossary, setNewGlossary] = useState({ jp: '', reading: '', vi: '' })
   const [documents, setDocuments] = useState<{ id: number; filename: string; category: string; uploaded_at: string }[]>([])
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({ profile: true, company: false, vocab: false, notes: false })
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({ profile: true, company: false, vocab: false, notes: false, pregen: false })
   const [uploadFeedback, setUploadFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [pregenQuestions, setPregenQuestions] = useState<{ id: number; question: string; language: string; has_answer: boolean; created_at: string }[]>([])
+  const [pregenLoading, setPregenLoading] = useState(false)
+  const [pregenNewQ, setPregenNewQ] = useState('')
+  const [pregenEditId, setPregenEditId] = useState<number | null>(null)
+  const [pregenEditText, setPregenEditText] = useState('')
 
   const headers = getHeaders()
 
@@ -250,8 +255,68 @@ export default function MeetingRoom() {
     try { await fetch(`${API}/api/meetings/${id}/documents/${docId}`, { method: 'DELETE', headers }); loadDocuments() } catch {}
   }
 
+  const loadPregenQuestions = useCallback(async () => {
+    if (!id) return
+    try {
+      const r = await fetch(`${API}/api/meetings/${id}/pregen`, { headers })
+      if (r.ok) setPregenQuestions(await r.json())
+    } catch {}
+  }, [id])
+
+  const addPregenQuestion = async () => {
+    if (!id || !pregenNewQ.trim()) return
+    try {
+      const r = await fetch(`${API}/api/meetings/${id}/pregen`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ question: pregenNewQ.trim(), language: meeting.language }),
+      })
+      if (r.ok) { setPregenNewQ(''); loadPregenQuestions() }
+    } catch {}
+  }
+
+  const updatePregenQuestion = async (qId: number, question: string) => {
+    if (!id) return
+    try {
+      await fetch(`${API}/api/meetings/${id}/pregen/${qId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ question }),
+      })
+      setPregenEditId(null)
+      loadPregenQuestions()
+    } catch {}
+  }
+
+  const deletePregenQuestion = async (qId: number) => {
+    if (!id) return
+    try { await fetch(`${API}/api/meetings/${id}/pregen/${qId}`, { method: 'DELETE', headers }); loadPregenQuestions() } catch {}
+  }
+
+  const loadPregenDefaults = async () => {
+    if (!id) return
+    setPregenLoading(true)
+    try {
+      await fetch(`${API}/api/meetings/${id}/pregen/defaults`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ language: meeting.language }),
+      })
+      await loadPregenQuestions()
+    } catch {}
+    setPregenLoading(false)
+  }
+
+  const generatePregenAnswers = async () => {
+    if (!id) return
+    setPregenLoading(true)
+    try {
+      await fetch(`${API}/api/meetings/${id}/pregen/generate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
+      })
+    } catch {}
+    setPregenLoading(false)
+  }
+
   useEffect(() => {
-    if (rightTab === 'context') { loadNotes(); loadGlossary(); loadDocuments() }
+    if (rightTab === 'context') { loadNotes(); loadGlossary(); loadDocuments(); loadPregenQuestions() }
   }, [rightTab, id])
 
   const toggleSection = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))
@@ -919,6 +984,53 @@ export default function MeetingRoom() {
                   <textarea value={notes.general} onChange={(e) => setNotes(prev => ({ ...prev, general: e.target.value }))} onBlur={() => saveNote('general', notes.general)}
                     placeholder={t('context.notesPlaceholder')}
                     className="w-full h-[90px] rounded-lg border border-border/30 bg-background p-2.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none" />
+                </ContextSection>
+
+                <ContextSection icon={<ListTodo className="w-4 h-4" />} title={t('context.pregenTitle', 'Prepared Answers')} subtitle={`${pregenQuestions.length} ${t('context.pregenCount', 'questions')}`}
+                  expanded={expandedSections.pregen} onToggle={() => toggleSection('pregen')}>
+                  <div className="flex gap-1 mb-2">
+                    <input value={pregenNewQ} onChange={(e) => setPregenNewQ(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addPregenQuestion()}
+                      placeholder={t('context.pregenAddPlaceholder', 'Add a question...')}
+                      className="flex-1 min-w-0 h-7 rounded-md border border-border/30 bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring/20" />
+                    <button onClick={addPregenQuestion} disabled={!pregenNewQ.trim()} className="h-7 w-7 shrink-0 rounded-md bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-40">
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="flex gap-1 mb-2">
+                    <button onClick={loadPregenDefaults} disabled={pregenLoading}
+                      className="flex-1 h-7 rounded-md border border-border/30 text-[11px] text-muted-foreground hover:bg-accent/40 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-1">
+                      {pregenLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                      {t('context.pregenLoadDefaults', 'Load Defaults')}
+                    </button>
+                    <button onClick={generatePregenAnswers} disabled={pregenLoading || pregenQuestions.length === 0}
+                      className="flex-1 h-7 rounded-md border border-primary/30 text-[11px] text-primary hover:bg-primary/10 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-1">
+                      {pregenLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      {t('context.pregenGenerate', 'Generate All')}
+                    </button>
+                  </div>
+                  {pregenQuestions.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground/40 text-center py-3">{t('context.pregenEmpty', 'No prepared questions yet')}</p>
+                  ) : (
+                    <div className="space-y-0.5 max-h-[240px] overflow-y-auto">
+                      {pregenQuestions.map((pq) => (
+                        <div key={pq.id} className="group flex items-start gap-2 px-2 py-1.5 rounded-md text-xs hover:bg-accent/30 transition-colors">
+                          <div className={cn('w-1.5 h-1.5 rounded-full mt-1.5 shrink-0', pq.has_answer ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />
+                          {pregenEditId === pq.id ? (
+                            <input autoFocus value={pregenEditText} onChange={(e) => setPregenEditText(e.target.value)}
+                              onBlur={() => { if (pregenEditText.trim()) updatePregenQuestion(pq.id, pregenEditText.trim()); else setPregenEditId(null) }}
+                              onKeyDown={(e) => { if (e.key === 'Enter' && pregenEditText.trim()) updatePregenQuestion(pq.id, pregenEditText.trim()); if (e.key === 'Escape') setPregenEditId(null) }}
+                              className="flex-1 min-w-0 h-6 rounded border border-primary/30 bg-background px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring/20" />
+                          ) : (
+                            <span className="flex-1 cursor-pointer leading-relaxed" onClick={() => { setPregenEditId(pq.id); setPregenEditText(pq.question) }}>{pq.question}</span>
+                          )}
+                          <button onClick={() => deletePregenQuestion(pq.id)} className="p-0.5 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-destructive transition-all shrink-0 mt-0.5">
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </ContextSection>
 
                 <p className="text-[10px] text-muted-foreground/30 text-center pt-2">{t('meeting.contextFedInfo')}</p>

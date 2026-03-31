@@ -6,8 +6,11 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.models.database import Meeting, TranscriptEntry, User, get_db
-from app.models.schemas import MeetingCreate, MeetingResponse, MeetingUpdate, TranscriptEntryResponse
+from app.models.database import Meeting, PreGeneratedAnswer, TranscriptEntry, User, get_db
+from app.models.schemas import (
+    MeetingCreate, MeetingResponse, MeetingUpdate, TranscriptEntryResponse,
+    PreGenQuestionCreate, PreGenQuestionUpdate, PreGenQuestionResponse,
+)
 from app.api.auth import get_optional_user
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
@@ -196,6 +199,149 @@ def strategy_chat(meeting_id: str, request: Request, body: dict, db: Session = D
             raise HTTPException(500, f"LLM error: {str(e)[:100]}")
 
     return {"reply": reply}
+
+
+# ── PreGen Question CRUD ─────────────────────────────────────
+
+@router.get("/{meeting_id}/pregen")
+def list_pregen(meeting_id: str, request: Request, db: Session = Depends(get_db)):
+    user = get_optional_user(request, db)
+    _get_owned_meeting(meeting_id, user, db)
+    rows = db.query(PreGeneratedAnswer).filter(
+        PreGeneratedAnswer.meeting_id == meeting_id,
+    ).order_by(PreGeneratedAnswer.id).all()
+    return [
+        PreGenQuestionResponse(
+            id=r.id,
+            question=r.question_ja,
+            language=r.language or "ja-JP",
+            has_answer=bool(r.answer_romaji or r.answer_vi),
+            created_at=r.created_at,
+        )
+        for r in rows
+    ]
+
+
+@router.post("/{meeting_id}/pregen", status_code=201)
+def add_pregen(meeting_id: str, body: PreGenQuestionCreate, request: Request, db: Session = Depends(get_db)):
+    user = get_optional_user(request, db)
+    _get_owned_meeting(meeting_id, user, db)
+    entry = PreGeneratedAnswer(
+        meeting_id=meeting_id,
+        question_ja=body.question,
+        language=body.language,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return PreGenQuestionResponse(
+        id=entry.id,
+        question=entry.question_ja,
+        language=entry.language or "ja-JP",
+        has_answer=False,
+        created_at=entry.created_at,
+    )
+
+
+@router.put("/{meeting_id}/pregen/{question_id}")
+def update_pregen(meeting_id: str, question_id: int, body: PreGenQuestionUpdate, request: Request, db: Session = Depends(get_db)):
+    user = get_optional_user(request, db)
+    _get_owned_meeting(meeting_id, user, db)
+    entry = db.query(PreGeneratedAnswer).filter(
+        PreGeneratedAnswer.id == question_id,
+        PreGeneratedAnswer.meeting_id == meeting_id,
+    ).first()
+    if not entry:
+        raise HTTPException(404, "Question not found")
+    if body.question is not None:
+        entry.question_ja = body.question
+        entry.answer_romaji = ""
+        entry.answer_vi = ""
+        entry.embedding = None
+    if body.language is not None:
+        entry.language = body.language
+    db.commit()
+    db.refresh(entry)
+    return PreGenQuestionResponse(
+        id=entry.id,
+        question=entry.question_ja,
+        language=entry.language or "ja-JP",
+        has_answer=bool(entry.answer_romaji or entry.answer_vi),
+        created_at=entry.created_at,
+    )
+
+
+@router.delete("/{meeting_id}/pregen/{question_id}", status_code=204)
+def delete_pregen(meeting_id: str, question_id: int, request: Request, db: Session = Depends(get_db)):
+    user = get_optional_user(request, db)
+    _get_owned_meeting(meeting_id, user, db)
+    entry = db.query(PreGeneratedAnswer).filter(
+        PreGeneratedAnswer.id == question_id,
+        PreGeneratedAnswer.meeting_id == meeting_id,
+    ).first()
+    if not entry:
+        raise HTTPException(404, "Question not found")
+    db.delete(entry)
+    db.commit()
+    return None
+
+
+@router.post("/{meeting_id}/pregen/defaults")
+def load_pregen_defaults(meeting_id: str, request: Request, body: dict, db: Session = Depends(get_db)):
+    """Load default questions for a language, skipping duplicates."""
+    user = get_optional_user(request, db)
+    _get_owned_meeting(meeting_id, user, db)
+    language = body.get("language", "ja-JP")
+
+    from app.services.pregen import get_default_questions
+    defaults = get_default_questions(language)
+
+    existing = db.query(PreGeneratedAnswer.question_ja).filter(
+        PreGeneratedAnswer.meeting_id == meeting_id,
+    ).all()
+    existing_set = {q[0] for q in existing}
+
+    added = []
+    for q in defaults:
+        if q not in existing_set:
+            entry = PreGeneratedAnswer(
+                meeting_id=meeting_id, question_ja=q, language=language,
+            )
+            db.add(entry)
+            added.append(q)
+    db.commit()
+    return {"added": len(added), "total": len(defaults)}
+
+
+@router.post("/{meeting_id}/pregen/generate")
+def generate_pregen_answers(meeting_id: str, request: Request, db: Session = Depends(get_db)):
+    """Trigger background generation of answers for all unanswered questions."""
+    user = get_optional_user(request, db)
+    meeting = _get_owned_meeting(meeting_id, user, db)
+
+    import threading
+    from app.services.pregen import PreGenEngine
+    from app.core.config import settings as app_settings
+
+    engine = PreGenEngine(meeting_id, language=meeting.language)
+
+    valid_models = [m for m in app_settings.MODEL_REGISTRY if m.is_valid()]
+    if not valid_models:
+        raise HTTPException(503, "No LLM configured")
+
+    def _bg():
+        try:
+            system_prompt = (
+                "You are a helpful interview preparation assistant. "
+                "Generate a concise, professional answer for the given question."
+            )
+            engine.generate_common(system_prompt=system_prompt)
+        except Exception as e:
+            import sys
+            print(f"  [PREGEN-API] generate error: {e}", file=sys.stderr)
+
+    threading.Thread(target=_bg, daemon=True, name="pregen-api-gen").start()
+    return {"status": "generating"}
 
 
 def _to_response(m: Meeting) -> MeetingResponse:
