@@ -59,7 +59,8 @@
     "settings": "設定",
     "hideToolbar": "ツールバーを非表示",
     "showToolbar": "ツールバーを表示",
-    "sentences": "文"
+    "sentences": "文",
+    "switchingLang": "言語切替中..."
   },
   "context": {
     "myProfile": "プロフィール",

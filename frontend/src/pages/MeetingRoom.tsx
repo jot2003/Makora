@@ -55,6 +55,7 @@ export default function MeetingRoom() {
   const [strategyInput, setStrategyInput] = useState('')
   const [strategySending, setStrategySending] = useState(false)
   const [insightExpanded, setInsightExpanded] = useState<Record<string, boolean>>({ summary: true })
+  const [languageSwitching, setLanguageSwitching] = useState(false)
 
   const [notes, setNotes] = useState<Record<string, string>>({ personal: '', company: '', general: '' })
   const [glossary, setGlossary] = useState<{ id: number; jp: string; reading: string; vi: string }[]>([])
@@ -133,6 +134,11 @@ export default function MeetingRoom() {
       case 'model_switched': setActiveModel((msg.model_id as string) || ''); break
       case 'answer_length_changed': setAnswerLength(typeof msg.length === 'number' ? msg.length : 3); break
       case 'jp_level_changed': setJpLevel((msg.level as 'simple' | 'natural' | 'formal') || 'natural'); break
+      case 'language_switching': setLanguageSwitching(true); break
+      case 'language_switched':
+        setLanguageSwitching(false)
+        if (msg.language) meeting.setLanguage(msg.language as string)
+        break
     }
   }, [lastMessage])
 
@@ -388,6 +394,25 @@ export default function MeetingRoom() {
           <div className="flex flex-wrap items-center gap-2">
             <Select value={meeting.mode} onChange={switchMode} options={[{ value: 'interview', label: t('meeting.interview') }, { value: 'meeting', label: t('meeting.meetingMode') }]} size="sm" className="w-[110px]" />
 
+            <Dropdown trigger={
+              <Chip icon={<Languages className="w-3.5 h-3.5" />} active={languageSwitching}>
+                {languageSwitching ? t('meeting.switchingLang', 'Switching...') : { 'ja-JP': '日本語', 'en-US': 'English', 'vi-VN': 'Tiếng Việt', 'zh-CN': '中文', 'ko-KR': '한국어' }[meeting.language] || meeting.language}
+              </Chip>
+            }>
+              {[
+                { value: 'ja-JP', label: '日本語 (Japanese)' },
+                { value: 'en-US', label: 'English' },
+                { value: 'vi-VN', label: 'Tiếng Việt (Vietnamese)' },
+                { value: 'zh-CN', label: '中文 (Chinese)' },
+                { value: 'ko-KR', label: '한국어 (Korean)' },
+              ].map(opt => (
+                <DropdownItem key={opt.value} active={meeting.language === opt.value} onClick={() => {
+                  meeting.setLanguage(opt.value)
+                  if (isActive) send({ type: 'switch_language', language: opt.value })
+                }}>{opt.label}</DropdownItem>
+              ))}
+            </Dropdown>
+
             <div className="w-px h-5 bg-border/50 hidden sm:block" />
 
             <Chip active={suggestionsEnabled} onClick={toggleSuggestions} variant="primary" icon={<Sparkles className="w-3.5 h-3.5" />}>
@@ -441,20 +466,9 @@ export default function MeetingRoom() {
             )}
 
             <Tooltip content={t('meeting.settings', 'Settings')}>
-              <Dropdown
-                trigger={
-                  <button className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
-                    <Settings className="w-4 h-4" />
-                  </button>
-                }
-                align="right"
-              >
-                <div className="px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">{t('meeting.language')}</p>
-                  <Select value={meeting.language} onChange={(v) => { meeting.setLanguage(v); if (isActive) send({ type: 'switch_language', language: v }) }}
-                    options={[{ value: 'ja-JP', label: 'Japanese' }, { value: 'en-US', label: 'English' }, { value: 'zh-CN', label: 'Chinese' }, { value: 'ko-KR', label: 'Korean' }]} size="sm" />
-                </div>
-              </Dropdown>
+              <button className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                <Settings className="w-4 h-4" />
+              </button>
             </Tooltip>
 
             <Tooltip content={showToolbar ? t('meeting.hideToolbar', 'Collapse toolbar') : t('meeting.showToolbar', 'Show toolbar')}>
@@ -471,6 +485,14 @@ export default function MeetingRoom() {
         <button onClick={() => setShowToolbar(true)} className="shrink-0 h-6 border-b border-border/30 bg-muted/10 flex items-center justify-center text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/20 transition-colors">
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
+      )}
+
+      {/* ═══ Language switching indicator ═══ */}
+      {languageSwitching && (
+        <div className="shrink-0 px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-center gap-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600 dark:text-amber-400" />
+          <span className="text-xs font-medium text-amber-600 dark:text-amber-400">{t('meeting.switchingLang', 'Switching language...')}</span>
+        </div>
       )}
 
       {/* ═══ BODY ═══ */}

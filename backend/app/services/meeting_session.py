@@ -39,7 +39,19 @@ _OBVIOUS_QUESTION_JA = re.compile(
     r'教えてください|聞かせてください|お話しください)[。？]?$|[？?]$'
 )
 _OBVIOUS_QUESTION_EN = re.compile(r'\?$')
+_OBVIOUS_QUESTION_VI = re.compile(
+    r'(?:là gì|như thế nào|ra sao|thế nào|được không|'
+    r'chưa|không|chứ|nhỉ|hả|nhé|vậy|ạ)[.?]?$|[?]$'
+)
 _MIN_BYPASS_CHARS = 15
+
+
+def _get_obvious_q_re(language: str) -> re.Pattern:
+    if language.startswith("ja"):
+        return _OBVIOUS_QUESTION_JA
+    if language.startswith("vi"):
+        return _OBVIOUS_QUESTION_VI
+    return _OBVIOUS_QUESTION_EN
 
 _COST_PER_1M: dict[str, tuple[float, float]] = {
     "gpt-4o": (2.50, 10.00),
@@ -136,7 +148,7 @@ class MeetingSession:
         self._active_line_id: str = ""
         self._loop: asyncio.AbstractEventLoop | None = None
         self._diarizer_pool: ThreadPoolExecutor | None = None
-        self._obvious_q_re = _OBVIOUS_QUESTION_JA if language.startswith("ja") else _OBVIOUS_QUESTION_EN
+        self._obvious_q_re = _get_obvious_q_re(language)
         self._pregen: PreGenEngine | None = None
 
     # -- Public API --
@@ -227,25 +239,7 @@ class MeetingSession:
         self._stt.start()
         self._audio.start()
 
-        if self._llm and self.language.startswith("ja"):
-            self._pregen = PreGenEngine(self.meeting_id)
-            sys_prompt = self._llm._build_system_prompt("Japanese")
-            def _bg_pregen():
-                try:
-                    if not self._running or not self._pregen:
-                        return
-                    self._pregen.load_from_db()
-                    if not self._running or not self._pregen:
-                        return
-                    if not self._pregen.ready:
-                        self._pregen.generate_common(
-                            system_prompt=sys_prompt,
-                            personal_info=self._llm._personal_info if self._llm else "",
-                            company_info=self._llm._company_info if self._llm else "",
-                        )
-                except Exception as e:
-                    print(f"  [PREGEN] background error: {e}", file=sys.stderr)
-            threading.Thread(target=_bg_pregen, daemon=True, name="pregen-init").start()
+        self._start_pregen_for_language(self.language)
 
         self._emit({"type": "status", "message": f"Meeting {self.meeting_id} started ({self.mode}, {self.language})"})
 
@@ -283,17 +277,60 @@ class MeetingSession:
             return
         if new_language == self.language:
             return
+
+        self._emit({"type": "language_switching", "language": new_language})
+        old_language = self.language
         self.language = new_language
+
         self._stt.switch_language(new_language)
         self._audio.update_streams(
             self._stt.push_stream_lb,
             self._stt.push_stream_mic,
             self._stt.push_stream_lb_shadow,
         )
+
         lang_info = _LANGUAGES.get(new_language, _LANGUAGES["ja-JP"])
         if self._llm:
             self._llm.set_language(lang_info["name"], lang_info["has_romaji"])
-        self._emit({"type": "status", "message": f"Language switched to {new_language}"})
+
+        self._obvious_q_re = _get_obvious_q_re(new_language)
+
+        if self._suggestion_ctrl:
+            self._suggestion_ctrl.set_language(new_language)
+
+        if self._pregen:
+            self._pregen = None
+        self._start_pregen_for_language(new_language)
+
+        self._emit({"type": "language_switched", "language": new_language})
+
+    def _start_pregen_for_language(self, language: str):
+        if not self._llm:
+            return
+        lang_info = _LANGUAGES.get(language, _LANGUAGES.get("ja-JP"))
+        if not lang_info:
+            return
+        lang_name = lang_info["name"]
+        self._pregen = PreGenEngine(self.meeting_id)
+        sys_prompt = self._llm._build_system_prompt(lang_name)
+
+        def _bg_pregen():
+            try:
+                if not self._running or not self._pregen:
+                    return
+                self._pregen.load_from_db()
+                if not self._running or not self._pregen:
+                    return
+                if not self._pregen.ready:
+                    self._pregen.generate_common(
+                        system_prompt=sys_prompt,
+                        personal_info=self._llm._personal_info if self._llm else "",
+                        company_info=self._llm._company_info if self._llm else "",
+                    )
+            except Exception as e:
+                print(f"  [PREGEN] background error: {e}", file=sys.stderr)
+
+        threading.Thread(target=_bg_pregen, daemon=True, name="pregen-init").start()
 
     def handle_manual_answer(self, text: str, ai_refine: bool = True):
         if self._llm:

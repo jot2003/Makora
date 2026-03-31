@@ -59,7 +59,8 @@
     "settings": "Cài đặt",
     "hideToolbar": "Thu gọn toolbar",
     "showToolbar": "Hiện toolbar",
-    "sentences": "câu"
+    "sentences": "câu",
+    "switchingLang": "Đang chuyển ngôn ngữ..."
   },
   "context": {
     "myProfile": "Hồ sơ của tôi",

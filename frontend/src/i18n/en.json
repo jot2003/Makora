@@ -59,7 +59,8 @@
     "settings": "Settings",
     "hideToolbar": "Collapse toolbar",
     "showToolbar": "Show toolbar",
-    "sentences": "sent."
+    "sentences": "sent.",
+    "switchingLang": "Switching language..."
   },
   "context": {
     "myProfile": "My Profile",

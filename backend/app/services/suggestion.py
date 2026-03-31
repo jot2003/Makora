@@ -63,6 +63,39 @@ _QUESTION_END_JA = re.compile(
 
 _QUESTION_END_EN = re.compile(r'\?$')
 
+_QUESTION_PATTERNS_VI = re.compile(
+    r'(?:^(?:bạn|hãy|xin|cho biết|tại sao|thế nào|như thế nào|'
+    r'bao giờ|ở đâu|cái gì|ai|làm sao|có thể|vì sao|'
+    r'kể về|mô tả|giải thích|chia sẻ|trình bày)'
+    r'|[?]$|là gì|như thế nào|được không|chưa|không)',
+    re.IGNORECASE,
+)
+
+_FILLER_PATTERNS_VI = re.compile(
+    r'^(?:vâng|dạ|ok|được|rồi|cảm ơn|'
+    r'vâng ạ|dạ vâng|tôi hiểu|tôi biết|à|ừ|uhm)$',
+    re.IGNORECASE,
+)
+
+_GREETING_VI = re.compile(
+    r'(?:xin chào|chào bạn|chào anh|chào chị|rất vui|chào em)',
+    re.IGNORECASE,
+)
+
+_QUESTION_END_VI = re.compile(
+    r'(?:là gì|như thế nào|ra sao|thế nào|được không|'
+    r'chưa|không|chứ|nhỉ|hả|nhé|vậy|ạ)[.?]?$|[?]$'
+)
+
+
+def _get_question_end_re(language: str) -> re.Pattern:
+    if language.startswith("ja"):
+        return _QUESTION_END_JA
+    if language.startswith("vi"):
+        return _QUESTION_END_VI
+    return _QUESTION_END_EN
+
+
 IntentType = Literal["question", "statement", "filler", "greeting"]
 ModeType = Literal["interview", "meeting"]
 
@@ -154,6 +187,10 @@ class TurnAggregator:
             on_turn_complete(completed)
         return completed
 
+    def set_fast_patterns(self, patterns: "re.Pattern | None"):
+        with self._lock:
+            self._fast_patterns = patterns
+
     def flush(self) -> Turn | None:
         with self._lock:
             self._cancel_timer()
@@ -200,13 +237,24 @@ class IntentClassifier:
             return "filler"
 
         is_ja = language.startswith("ja")
-        filler_re = _FILLER_PATTERNS_JA if is_ja else _FILLER_PATTERNS_EN
-        question_re = _QUESTION_PATTERNS_JA if is_ja else _QUESTION_PATTERNS_EN
+        is_vi = language.startswith("vi")
+
+        if is_ja:
+            filler_re = _FILLER_PATTERNS_JA
+            question_re = _QUESTION_PATTERNS_JA
+        elif is_vi:
+            filler_re = _FILLER_PATTERNS_VI
+            question_re = _QUESTION_PATTERNS_VI
+        else:
+            filler_re = _FILLER_PATTERNS_EN
+            question_re = _QUESTION_PATTERNS_EN
 
         if filler_re.match(text):
             return "filler"
 
         if is_ja and _GREETING_JA.search(text):
+            return "greeting"
+        if is_vi and _GREETING_VI.search(text):
             return "greeting"
 
         if question_re.search(text):
@@ -250,10 +298,9 @@ class SuggestionController:
         self._is_idle = True
         self._classifier = IntentClassifier()
 
-        fast_re = _QUESTION_END_JA if language.startswith("ja") else _QUESTION_END_EN
         self._aggregator = TurnAggregator(
             gap_ms=1000, max_turn_ms=30000,
-            fast_patterns=fast_re, fast_gap_ms=200,
+            fast_patterns=_get_question_end_re(language), fast_gap_ms=200,
         )
 
     def set_mode(self, mode: ModeType):
@@ -261,6 +308,7 @@ class SuggestionController:
 
     def set_language(self, language: str):
         self._language = language
+        self._aggregator.set_fast_patterns(_get_question_end_re(language))
 
     def on_final(self, text: str, romaji: str, speaker: str):
         """Feed a final STT result. The controller will aggregate turns
