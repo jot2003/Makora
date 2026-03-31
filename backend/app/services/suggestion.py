@@ -299,7 +299,7 @@ class SuggestionController:
         self._classifier = IntentClassifier()
 
         self._aggregator = TurnAggregator(
-            gap_ms=1000, max_turn_ms=30000,
+            gap_ms=700, max_turn_ms=30000,
             fast_patterns=_get_question_end_re(language), fast_gap_ms=200,
         )
 

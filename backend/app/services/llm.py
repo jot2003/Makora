@@ -63,7 +63,8 @@ class LLMEngine:
         self._fast_deployment = fast_deployment or deployment
         self._active_deployment = fast_deployment or deployment
         self._active_client = self._client
-        self._queue: list[dict] = []
+        self._high_queue: list[dict] = []
+        self._low_queue: list[dict] = []
         self._running = False
         self._personal_info = ""
         self._company_info = ""
@@ -74,7 +75,9 @@ class LLMEngine:
         self._has_romaji = True
         self._answer_length: int = 3
         self._jp_level = "natural"
-        self._event = threading.Event()
+        self._high_event = threading.Event()
+        self._low_event = threading.Event()
+        self._low_cancel = threading.Event()
 
         self._kakasi = pykakasi.kakasi()
         self._kakasi_lock = threading.Lock()
@@ -85,7 +88,8 @@ class LLMEngine:
         self._on_error = on_error or (lambda _: None)
         self._on_usage = on_usage or (lambda _: None)
 
-        self._thread: threading.Thread | None = None
+        self._thread_high: threading.Thread | None = None
+        self._thread_low: threading.Thread | None = None
 
     def set_answer_length(self, length):
         if length == 0 or length == "auto":
@@ -132,20 +136,21 @@ class LLMEngine:
         return self._jp_level
 
     def enqueue(self, ja: str, romaji_azure: str, vi_azure: str):
-        self._queue.append({"type": "tier2", "ja": ja, "romaji_azure": romaji_azure, "vi_azure": vi_azure})
-        self._event.set()
+        self._low_cancel.set()
+        self._low_queue.append({"type": "tier2", "ja": ja, "romaji_azure": romaji_azure, "vi_azure": vi_azure})
+        self._low_event.set()
 
     def enqueue_manual(self, text: str, ai_refine: bool):
-        self._queue.append({"type": "manual", "text": text, "ai_refine": ai_refine})
-        self._event.set()
+        self._high_queue.append({"type": "manual", "text": text, "ai_refine": ai_refine})
+        self._high_event.set()
 
     def enqueue_elaborate(self, previous_answer: str, original_question: str):
-        self._queue.append({
+        self._high_queue.append({
             "type": "elaborate",
             "previous_answer": previous_answer,
             "original_question": original_question,
         })
-        self._event.set()
+        self._high_event.set()
 
     def add_user_speech(self, ja: str, vi: str):
         self._recent_transcript.append({"speaker": "me", "ja": ja, "vi": vi})
@@ -154,14 +159,20 @@ class LLMEngine:
 
     def start(self):
         self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True, name="llm-engine")
-        self._thread.start()
+        self._thread_high = threading.Thread(target=self._run_high, daemon=True, name="llm-high")
+        self._thread_low = threading.Thread(target=self._run_low, daemon=True, name="llm-low")
+        self._thread_high.start()
+        self._thread_low.start()
 
     def stop(self):
         self._running = False
-        if self._thread:
-            self._thread.join(timeout=3)
-            self._thread = None
+        self._low_cancel.set()
+        self._high_event.set()
+        self._low_event.set()
+        for t in (self._thread_high, self._thread_low):
+            if t:
+                t.join(timeout=3)
+        self._thread_high = self._thread_low = None
 
     def _create_with_fallback(self, kwargs: dict):
         try:
@@ -200,29 +211,44 @@ class LLMEngine:
                 self._on_answer_streaming("answer_romaji", romaji + " ")
         return romaji
 
-    def _run(self):
+    def _run_high(self):
+        """Worker for manual + elaborate requests. Never blocked by auto suggestions."""
         while self._running:
-            if not self._queue:
-                self._event.wait(timeout=0.1)
-                self._event.clear()
-                if not self._queue:
+            if not self._high_queue:
+                self._high_event.wait(timeout=0.2)
+                self._high_event.clear()
+                if not self._high_queue:
                     continue
 
-            item = self._queue.pop(-1)
-
-            if item.get("type") == "tier2" and self._queue:
-                self._queue = [i for i in self._queue if i.get("type") != "tier2"]
-
+            item = self._high_queue.pop(-1)
             try:
-                if item.get("type") == "manual":
-                    self._process_manual(item)
-                elif item.get("type") == "elaborate":
+                if item.get("type") == "elaborate":
                     self._process_elaborate(item)
                 else:
-                    self._process_answer(item)
+                    self._process_manual(item)
             except Exception as e:
                 self._on_error(f"LLM: {str(e)[:80]}")
-                print(f"  [LLM ERROR] {e}", file=sys.stderr)
+                print(f"  [LLM ERROR high] {e}", file=sys.stderr)
+
+    def _run_low(self):
+        """Worker for auto suggestions (tier2). Cancellable when new question arrives."""
+        while self._running:
+            if not self._low_queue:
+                self._low_event.wait(timeout=0.2)
+                self._low_event.clear()
+                if not self._low_queue:
+                    continue
+
+            item = self._low_queue.pop(-1)
+            if self._low_queue:
+                self._low_queue = [i for i in self._low_queue if i.get("type") != "tier2"]
+            self._low_cancel.clear()
+
+            try:
+                self._process_answer(item)
+            except Exception as e:
+                self._on_error(f"LLM: {str(e)[:80]}")
+                print(f"  [LLM ERROR low] {e}", file=sys.stderr)
 
     def _process_answer(self, item: dict):
         ja = item["ja"]
@@ -356,7 +382,7 @@ class LLMEngine:
             stream = self._active_client.chat.completions.create(**create_kwargs)
 
             for chunk in stream:
-                if not self._running:
+                if not self._running or self._low_cancel.is_set():
                     break
                 if hasattr(chunk, "usage") and chunk.usage:
                     usage_data = {

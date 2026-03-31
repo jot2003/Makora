@@ -22,6 +22,9 @@ EMBEDDING_DIM = 1536
 
 _embedding_client = None
 _embedding_client_lock = threading.Lock()
+_embedding_cache: dict[str, list[float]] = {}
+_embedding_cache_lock = threading.Lock()
+_EMBEDDING_CACHE_MAX = 1000
 
 
 def _get_embedding_client():
@@ -94,23 +97,45 @@ def chunk_transcript(entries: list[dict], chunk_size: int = CHUNK_SIZE, overlap:
 
 
 def get_embeddings(texts: list[str]) -> np.ndarray:
-    """Get embeddings from Azure OpenAI (cached client, thread-safe)."""
+    """Get embeddings from Azure OpenAI with LRU cache (thread-safe)."""
     client = _get_embedding_client()
 
-    embeddings = []
-    batch_size = 16
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i:i + batch_size]
-        try:
-            resp = client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
-            for item in resp.data:
-                embeddings.append(item.embedding)
-        except Exception as e:
-            print(f"  [EMBEDDING ERR] {e}", file=sys.stderr)
-            for _ in batch:
-                embeddings.append([0.0] * EMBEDDING_DIM)
+    results: list[list[float]] = []
+    uncached_texts: list[str] = []
+    uncached_indices: list[int] = []
 
-    return np.array(embeddings, dtype=np.float32)
+    with _embedding_cache_lock:
+        for i, t in enumerate(texts):
+            cached = _embedding_cache.get(t)
+            if cached is not None:
+                results.append(cached)
+            else:
+                results.append([])
+                uncached_texts.append(t)
+                uncached_indices.append(i)
+
+    if uncached_texts:
+        batch_size = 16
+        fetched: list[list[float]] = []
+        for i in range(0, len(uncached_texts), batch_size):
+            batch = uncached_texts[i:i + batch_size]
+            try:
+                resp = client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
+                for item in resp.data:
+                    fetched.append(item.embedding)
+            except Exception as e:
+                print(f"  [EMBEDDING ERR] {e}", file=sys.stderr)
+                for _ in batch:
+                    fetched.append([0.0] * EMBEDDING_DIM)
+
+        with _embedding_cache_lock:
+            for j, (result_idx, emb) in enumerate(zip(uncached_indices, fetched)):
+                results[result_idx] = emb
+                _embedding_cache[uncached_texts[j]] = emb
+                if len(_embedding_cache) > _EMBEDDING_CACHE_MAX:
+                    _embedding_cache.pop(next(iter(_embedding_cache)))
+
+    return np.array(results, dtype=np.float32)
 
 
 def build_faiss_index(chunks: list[dict]) -> tuple[Any, list[dict]]:

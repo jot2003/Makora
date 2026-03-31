@@ -408,7 +408,8 @@ class MeetingSession:
         if not enabled:
             self._current_is_auto = False
             if self._llm:
-                self._llm._queue = [i for i in self._llm._queue if i.get("type") != "tier2"]
+                self._llm._low_queue.clear()
+                self._llm._low_cancel.set()
             if self._suggestion_ctrl:
                 self._suggestion_ctrl.clear()
 
