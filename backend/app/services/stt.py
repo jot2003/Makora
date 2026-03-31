@@ -72,84 +72,113 @@ class StreamingSTT:
         self._on_status = on_status or (lambda _: None)
         self._on_error = on_error or (lambda _: None)
 
+        self._standby_sets: dict[str, dict] = {}
         self._create_recognizers(source_language)
 
     @property
     def source_language(self) -> str:
         return self._source_language
 
-    def _create_recognizers(self, language: str):
-        self._source_language = language
-
-        # Loopback: ConversationTranscriber (speaker diarization)
-        self.push_stream_lb = speechsdk.audio.PushAudioInputStream(stream_format=self.AUDIO_FORMAT)
-        audio_config_lb = speechsdk.audio.AudioConfig(stream=self.push_stream_lb)
-        speech_config_lb = speechsdk.SpeechConfig(
-            subscription=self._speech_key, region=self._speech_region,
-        )
-        speech_config_lb.speech_recognition_language = language
-        speech_config_lb.set_profanity(speechsdk.ProfanityOption.Raw)
+    def _build_recognizer_set(self, language: str) -> dict:
+        """Build a complete recognizer set for a language without connecting callbacks."""
+        stream_lb = speechsdk.audio.PushAudioInputStream(stream_format=self.AUDIO_FORMAT)
+        audio_lb = speechsdk.audio.AudioConfig(stream=stream_lb)
+        cfg_lb = speechsdk.SpeechConfig(subscription=self._speech_key, region=self._speech_region)
+        cfg_lb.speech_recognition_language = language
+        cfg_lb.set_profanity(speechsdk.ProfanityOption.Raw)
         try:
-            speech_config_lb.set_property(
-                speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "800"
-            )
+            cfg_lb.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "800")
         except Exception:
             pass
+        transcriber = speechsdk.transcription.ConversationTranscriber(speech_config=cfg_lb, audio_config=audio_lb)
 
-        self._transcriber = speechsdk.transcription.ConversationTranscriber(
-            speech_config=speech_config_lb, audio_config=audio_config_lb,
-        )
+        stream_shadow = speechsdk.audio.PushAudioInputStream(stream_format=self.AUDIO_FORMAT)
+        audio_shadow = speechsdk.audio.AudioConfig(stream=stream_shadow)
+        trans_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=self._speech_key, region=self._speech_region)
+        trans_cfg.speech_recognition_language = language
+        target_lang = "en" if language.startswith("vi") else "vi"
+        trans_cfg.add_target_language(target_lang)
+        trans_cfg.set_profanity(speechsdk.ProfanityOption.Raw)
+        try:
+            trans_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "800")
+        except Exception:
+            pass
+        shadow = speechsdk.translation.TranslationRecognizer(translation_config=trans_cfg, audio_config=audio_shadow)
+
+        stream_mic = speechsdk.audio.PushAudioInputStream(stream_format=self.AUDIO_FORMAT)
+        audio_mic = speechsdk.audio.AudioConfig(stream=stream_mic)
+        cfg_mic = speechsdk.SpeechConfig(subscription=self._speech_key, region=self._speech_region)
+        cfg_mic.speech_recognition_language = language
+        cfg_mic.set_profanity(speechsdk.ProfanityOption.Raw)
+        mic_rec = speechsdk.SpeechRecognizer(speech_config=cfg_mic, audio_config=audio_mic)
+
+        return {
+            "language": language,
+            "transcriber": transcriber, "stream_lb": stream_lb,
+            "shadow": shadow, "stream_shadow": stream_shadow,
+            "mic": mic_rec, "stream_mic": stream_mic,
+        }
+
+    def _activate_set(self, rset: dict):
+        """Wire callbacks and set as active recognizer set."""
+        self._source_language = rset["language"]
+        self.push_stream_lb = rset["stream_lb"]
+        self.push_stream_lb_shadow = rset["stream_shadow"]
+        self.push_stream_mic = rset["stream_mic"]
+        self._transcriber = rset["transcriber"]
+        self._shadow_translator = rset["shadow"]
+        self._mic_recognizer = rset["mic"]
+
         self._transcriber.transcribing.connect(self._on_lb_transcribing)
         self._transcriber.transcribed.connect(self._on_lb_transcribed)
         self._transcriber.canceled.connect(self._on_canceled)
         self._transcriber.session_started.connect(self._on_session_started)
-
-        # Shadow TranslationRecognizer on loopback
-        self.push_stream_lb_shadow = speechsdk.audio.PushAudioInputStream(stream_format=self.AUDIO_FORMAT)
-        audio_config_shadow = speechsdk.audio.AudioConfig(stream=self.push_stream_lb_shadow)
-        trans_config = speechsdk.translation.SpeechTranslationConfig(
-            subscription=self._speech_key, region=self._speech_region,
-        )
-        trans_config.speech_recognition_language = language
-        target_lang = "en" if language.startswith("vi") else "vi"
-        trans_config.add_target_language(target_lang)
-        trans_config.set_profanity(speechsdk.ProfanityOption.Raw)
-        try:
-            trans_config.set_property(
-                speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "800"
-            )
-        except Exception:
-            pass
-
-        self._shadow_translator = speechsdk.translation.TranslationRecognizer(
-            translation_config=trans_config, audio_config=audio_config_shadow,
-        )
         self._shadow_translator.recognizing.connect(self._on_shadow_translating)
         self._shadow_translator.recognized.connect(self._on_shadow_translated)
         self._shadow_translator.canceled.connect(self._on_canceled)
-
-        # Mic: SpeechRecognizer (always "me")
-        self.push_stream_mic = speechsdk.audio.PushAudioInputStream(stream_format=self.AUDIO_FORMAT)
-        audio_config_mic = speechsdk.audio.AudioConfig(stream=self.push_stream_mic)
-        speech_config_mic = speechsdk.SpeechConfig(
-            subscription=self._speech_key, region=self._speech_region,
-        )
-        speech_config_mic.speech_recognition_language = language
-        speech_config_mic.set_profanity(speechsdk.ProfanityOption.Raw)
-
-        self._mic_recognizer = speechsdk.SpeechRecognizer(
-            speech_config=speech_config_mic, audio_config=audio_config_mic,
-        )
         self._mic_recognizer.recognizing.connect(self._on_mic_recognizing)
         self._mic_recognizer.recognized.connect(self._on_mic_recognized)
         self._mic_recognizer.canceled.connect(self._on_canceled)
 
+    def _create_recognizers(self, language: str):
+        """Create and activate recognizers for a language."""
+        rset = self._build_recognizer_set(language)
+        self._activate_set(rset)
+
+    def warm_standby(self, languages: list[str]):
+        """Pre-build recognizer sets for the given languages in the background.
+
+        When switch_language is called, if a standby set exists it will be
+        activated instantly instead of building from scratch.
+        """
+        def _build():
+            for lang in languages:
+                if lang == self._source_language:
+                    continue
+                if lang in self._standby_sets:
+                    continue
+                try:
+                    rset = self._build_recognizer_set(lang)
+                    self._standby_sets[lang] = rset
+                    print(f"  [STT] Warm standby ready: {lang}", file=sys.stderr)
+                except Exception as e:
+                    print(f"  [STT] Warm standby failed for {lang}: {e}", file=sys.stderr)
+
+        threading.Thread(target=_build, daemon=True, name="stt-warm-standby").start()
+
     def switch_language(self, new_language: str):
         if new_language == self._source_language:
             return
-        print(f"  [STT] Switching language: {self._source_language} -> {new_language}")
+        print(f"  [STT] Switching language: {self._source_language} -> {new_language}", file=sys.stderr)
         self.stop()
-        self._create_recognizers(new_language)
+
+        if new_language in self._standby_sets:
+            rset = self._standby_sets.pop(new_language)
+            self._activate_set(rset)
+            print(f"  [STT] Used warm standby for {new_language}", file=sys.stderr)
+        else:
+            self._create_recognizers(new_language)
+
         self.start()
         self._on_status(f"Listening ({new_language})...")
 

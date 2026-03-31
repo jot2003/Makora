@@ -261,6 +261,9 @@ class MeetingSession:
         self._stt.start()
         self._audio.start()
 
+        standby_langs = [l for l in ("ja-JP", "en-US", "vi-VN") if l != self.language]
+        self._stt.warm_standby(standby_langs)
+
         self._start_pregen_for_language(self.language)
 
         self._emit({"type": "status", "message": f"Meeting {self.meeting_id} started ({self.mode}, {self.language})"})
