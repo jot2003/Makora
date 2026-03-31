@@ -74,10 +74,15 @@
   },
   "tabs": {
     "context": "Ngữ cảnh",
+    "strategy": "Chiến lược",
     "summary": "Tóm tắt",
     "actions": "Hành động",
     "timeline": "Dòng thời gian",
     "decisions": "Quyết định"
+  },
+  "strategy": {
+    "placeholder": "Hỏi AI tư vấn chiến lược dựa trên ngữ cảnh cuộc họp",
+    "inputPlaceholder": "Đặt câu hỏi chiến lược..."
   },
   "intel": {
     "genSummary": "Tạo tóm tắt",

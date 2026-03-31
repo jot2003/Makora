@@ -137,6 +137,67 @@ def export_transcript(meeting_id: str, request: Request, format: str = "txt", db
         return {"text": "\n".join(lines), "filename": f"transcript_{meeting_id}.txt"}
 
 
+@router.post("/{meeting_id}/strategy-chat")
+def strategy_chat(meeting_id: str, request: Request, body: dict, db: Session = Depends(get_db)):
+    """AI-powered strategy chat with meeting context."""
+    user = get_optional_user(request, db)
+    _get_owned_meeting(meeting_id, user, db)
+
+    from app.core.config import settings
+    valid = [m for m in settings.MODEL_REGISTRY if m.is_valid()]
+    if not valid:
+        raise HTTPException(503, "No LLM configured")
+
+    model = valid[0]
+    from openai import AzureOpenAI
+    client = AzureOpenAI(
+        api_key=model.key, azure_endpoint=model.endpoint,
+        api_version="2025-01-01-preview",
+    )
+
+    message = body.get("message", "")
+    context = body.get("context", {})
+    history = body.get("history", [])
+
+    system = (
+        "You are a meeting strategy advisor. Based on the meeting context, "
+        "help the user prepare answers, develop talking points, and strategize. "
+        "Be concise and actionable. Answer in the same language the user uses."
+    )
+    if context.get("transcript"):
+        system += f"\n\nRecent transcript:\n{context['transcript'][:3000]}"
+    if context.get("notes"):
+        system += f"\n\nUser notes:\n{context['notes'][:2000]}"
+    if context.get("company"):
+        system += f"\n\nCompany/JD info:\n{context['company'][:2000]}"
+
+    messages = [{"role": "system", "content": system}]
+    for h in history[-10:]:
+        messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
+
+    try:
+        resp = client.chat.completions.create(
+            model=model.deployment,
+            messages=messages,
+            max_completion_tokens=800,
+            temperature=0.7,
+        )
+        reply = resp.choices[0].message.content or ""
+    except Exception as e:
+        err = str(e).lower()
+        if "temperature" in err or "unsupported" in err:
+            resp = client.chat.completions.create(
+                model=model.deployment,
+                messages=messages,
+                max_completion_tokens=800,
+            )
+            reply = resp.choices[0].message.content or ""
+        else:
+            raise HTTPException(500, f"LLM error: {str(e)[:100]}")
+
+    return {"reply": reply}
+
+
 def _to_response(m: Meeting) -> MeetingResponse:
     return MeetingResponse(
         id=m.id,

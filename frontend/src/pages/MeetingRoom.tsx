@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  Mic, MicOff, X, Send, Settings,
+  Mic, MicOff, X, Send, Settings, Monitor, MessageCircle,
   FileText, ListTodo, Clock, AlertTriangle,
   Loader2, Download, Plus, Trash2, Search, RefreshCw,
   ChevronDown, User, Building2, Languages, StickyNote,
@@ -15,7 +15,7 @@ import { useWebSocket } from '@/stores/useWebSocket'
 import { useMeeting, type MeetingMode } from '@/stores/useMeeting'
 import { useAuth } from '@/stores/useAuth'
 
-type RightTab = 'context' | 'summary' | 'actions' | 'timeline' | 'decisions'
+type RightTab = 'context' | 'strategy' | 'summary' | 'actions' | 'timeline' | 'decisions'
 
 interface MeetingData { name: string; mode: string; status: string; transcript_count: number }
 
@@ -41,9 +41,13 @@ export default function MeetingRoom() {
   const [suggestionsEnabled, setSuggestionsEnabled] = useState(true)
   const [availableModels, setAvailableModels] = useState<{ id: string; label: string; is_reasoning?: boolean }[]>([])
   const [activeModel, setActiveModel] = useState('')
-  const [answerLength, setAnswerLength] = useState(3)
+  const [answerLength, setAnswerLength] = useState<number | 'auto'>(3)
   const [firstAudioReceived, setFirstAudioReceived] = useState(false)
   const [jpLevel, setJpLevel] = useState<'simple' | 'natural' | 'formal'>('natural')
+  const [rightPanelOpen, setRightPanelOpen] = useState(true)
+  const [strategyMessages, setStrategyMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  const [strategyInput, setStrategyInput] = useState('')
+  const [strategySending, setStrategySending] = useState(false)
 
   // Context state
   const [notes, setNotes] = useState<Record<string, string>>({ personal: '', company: '', general: '' })
@@ -262,10 +266,15 @@ export default function MeetingRoom() {
     send({ type: 'switch_model', model_id: modelId })
   }
 
-  const switchAnswerLength = (n: number) => {
-    const clamped = Math.max(1, Math.min(10, n))
-    setAnswerLength(clamped)
-    send({ type: 'set_answer_length', length: clamped })
+  const switchAnswerLength = (val: number | 'auto') => {
+    if (val === 'auto') {
+      setAnswerLength('auto')
+      send({ type: 'set_answer_length', length: 0 })
+    } else {
+      const clamped = Math.max(1, Math.min(10, val))
+      setAnswerLength(clamped)
+      send({ type: 'set_answer_length', length: clamped })
+    }
   }
 
   const switchJpLevel = (level: string) => {
@@ -306,6 +315,33 @@ export default function MeetingRoom() {
     else if (wsStatus === 'connected') { setFirstAudioReceived(false); send({ type: 'start_meeting', meeting_id: id, language: meeting.language, mode: meeting.mode, model_id: activeModel }); meeting.setStatus('active'); meeting.setMeetingId(id || null) }
   }
 
+  const sendStrategyMessage = async () => {
+    const msg = strategyInput.trim()
+    if (!msg || strategySending) return
+    const newMsgs = [...strategyMessages, { role: 'user' as const, content: msg }]
+    setStrategyMessages(newMsgs)
+    setStrategyInput('')
+    setStrategySending(true)
+    try {
+      const recentTranscript = meeting.transcript.slice(-10).map(l => `${l.speaker}: ${l.translationVi || l.text}`).join('\n')
+      const r = await fetch(`${API}/api/meetings/${id}/strategy-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ message: msg, context: { transcript: recentTranscript, notes: notes.personal, company: notes.company }, history: newMsgs.slice(-10) }),
+      })
+      if (r.ok) {
+        const data = await r.json()
+        setStrategyMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
+      } else {
+        setStrategyMessages(prev => [...prev, { role: 'assistant', content: 'Failed to get response.' }])
+      }
+    } catch {
+      setStrategyMessages(prev => [...prev, { role: 'assistant', content: 'Network error.' }])
+    } finally {
+      setStrategySending(false)
+    }
+  }
+
   const switchMode = (m: string) => {
     meeting.setMode(m as MeetingMode)
     if (id) fetch(`${API}/api/meetings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ mode: m }) }).catch(() => {})
@@ -317,6 +353,7 @@ export default function MeetingRoom() {
 
   const tabs: { key: RightTab; label: string; icon: any }[] = [
     { key: 'context', label: t('tabs.context'), icon: StickyNote },
+    { key: 'strategy', label: t('tabs.strategy', 'Strategy'), icon: MessageCircle },
     { key: 'summary', label: t('tabs.summary'), icon: FileText },
     { key: 'actions', label: t('tabs.actions'), icon: ListTodo },
     { key: 'timeline', label: t('tabs.timeline'), icon: Clock },
@@ -326,19 +363,19 @@ export default function MeetingRoom() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="shrink-0 h-14 border-b border-border/50 px-5 flex items-center justify-between bg-card/30">
-        <div className="flex items-center gap-3 min-w-0">
-          <h2 className="text-base font-semibold truncate">{meetingInfo?.name || 'Loading...'}</h2>
+      <div className="shrink-0 min-h-[3.5rem] border-b border-border/50 px-3 md:px-5 py-2 flex flex-wrap items-center justify-between gap-2 bg-card/30">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          <h2 className="text-sm md:text-base font-semibold truncate max-w-[120px] md:max-w-none">{meetingInfo?.name || 'Loading...'}</h2>
           <Badge variant={meeting.mode === 'interview' ? 'default' : 'warning'}>{meeting.mode === 'interview' ? t('meeting.interview') : t('meeting.meetingMode')}</Badge>
           {isCompleted && <Badge variant="success">{t('meeting.completed')}</Badge>}
           {isActive && <Badge variant="success" dot>{t('meeting.recording')}</Badge>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
           {!isCompleted && (
             <>
-              <Select value={meeting.mode} onChange={switchMode} options={[{ value: 'interview', label: t('meeting.interview') }, { value: 'meeting', label: t('meeting.meetingMode') }]} size="sm" className="w-[120px]" />
+              <Select value={meeting.mode} onChange={switchMode} options={[{ value: 'interview', label: t('meeting.interview') }, { value: 'meeting', label: t('meeting.meetingMode') }]} size="sm" className="w-[100px] md:w-[120px]" />
               {availableModels.length > 1 && (
-                <Select value={activeModel} onChange={switchModel} options={availableModels.map(m => ({ value: m.id, label: `${m.label}${m.is_reasoning ? ' (deep)' : ' (fast)'}` }))} size="sm" className="w-[180px]" />
+                <Select value={activeModel} onChange={switchModel} options={availableModels.map(m => ({ value: m.id, label: `${m.label}${m.is_reasoning ? ' (deep)' : ' (fast)'}` }))} size="sm" className="w-[140px] md:w-[180px]" />
               )}
               <button onClick={toggleSuggestions} className={cn('h-9 px-3 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors', suggestionsEnabled ? 'bg-primary/10 text-primary hover:bg-primary/15' : 'bg-muted text-muted-foreground hover:text-foreground')}>
                 <Sparkles className="w-4 h-4" />
@@ -346,10 +383,18 @@ export default function MeetingRoom() {
               </button>
               <div className="flex items-center gap-1.5 h-9 px-2.5 rounded-lg border border-border/50 bg-background text-sm">
                 <span className="text-muted-foreground whitespace-nowrap text-xs">{t('meeting.sentences', 'Sentences')}</span>
-                <input type="number" min={1} max={10} value={answerLength} onChange={e => switchAnswerLength(parseInt(e.target.value) || 3)} className="w-10 h-6 text-center text-sm bg-transparent border-none outline-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                <button onClick={() => switchAnswerLength(answerLength === 'auto' ? 3 : 'auto')} className={cn('px-1.5 py-0.5 rounded text-xs font-medium transition-colors', answerLength === 'auto' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>Auto</button>
+                {answerLength !== 'auto' && (
+                  <input type="number" min={1} max={10} value={answerLength} onChange={e => switchAnswerLength(parseInt(e.target.value) || 3)} className="w-10 h-6 text-center text-sm bg-transparent border-none outline-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                )}
               </div>
               {meeting.language.startsWith('ja') && (
                 <Select value={jpLevel} onChange={switchJpLevel} options={[{ value: 'simple', label: t('meeting.simpleJp') }, { value: 'natural', label: t('meeting.naturalJp') }, { value: 'formal', label: t('meeting.formalJp') }]} size="sm" className="w-[125px]" />
+              )}
+              {typeof window !== 'undefined' && (window as any).electronAPI && (
+                <button onClick={() => (window as any).electronAPI.toggleOverlay()} title="Toggle Overlay" className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                  <Monitor className="w-4.5 h-4.5" />
+                </button>
               )}
               <button onClick={() => setShowSettings(!showSettings)} className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
                 <Settings className="w-4.5 h-4.5" />
@@ -388,7 +433,7 @@ export default function MeetingRoom() {
       )}
 
       {/* Body */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Transcript */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Transcript search */}
@@ -491,6 +536,15 @@ export default function MeetingRoom() {
                                   Re-answer
                                 </button>
                                 <button
+                                  onClick={() => send({ type: 'elaborate', previous_answer: lineSuggestion.answerRomaji || lineSuggestion.answerVi, original_question: line.text })}
+                                  disabled={meeting.activeSuggestionLineId != null}
+                                  className="h-7 px-2.5 rounded text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-30"
+                                  title="Elaborate"
+                                >
+                                  <ChevronDown className="w-3 h-3 inline mr-0.5" />
+                                  Elaborate
+                                </button>
+                                <button
                                   onClick={() => copySuggestion(lineSuggestion.answerRomaji || lineSuggestion.answerVi, line.id)}
                                   className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground/50 hover:text-foreground"
                                   title="Copy"
@@ -583,8 +637,12 @@ export default function MeetingRoom() {
           )}
         </div>
 
+        {/* Right sidebar toggle */}
+        <button onClick={() => setRightPanelOpen(!rightPanelOpen)} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-12 w-5 bg-card/80 border border-border/50 rounded-l-md flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors md:hidden" style={{ right: rightPanelOpen ? '340px' : '0' }}>
+          <ChevronDown className={cn('w-3 h-3 transition-transform', rightPanelOpen ? 'rotate-[-90deg]' : 'rotate-90')} />
+        </button>
         {/* Right sidebar */}
-        <aside className="w-[340px] shrink-0 border-l border-border/50 bg-card/30 flex flex-col">
+        <aside className={cn('w-[280px] md:w-[340px] shrink-0 border-l border-border/50 bg-card/30 flex flex-col transition-all duration-200', !rightPanelOpen && 'hidden md:flex')}>
           <div className="flex shrink-0 border-b border-border/50 overflow-x-auto">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button key={key}
@@ -647,6 +705,39 @@ export default function MeetingRoom() {
                   </div>
                 ))}</div>
               )} />}
+
+            {/* Strategy Chat Tab */}
+            {rightTab === 'strategy' && (
+              <div className="animate-fade-in flex flex-col h-full">
+                <div className="flex-1 overflow-y-auto space-y-2 mb-2">
+                  {strategyMessages.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground/50">
+                      <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">{t('strategy.placeholder', 'Ask the AI for strategy advice based on your meeting context')}</p>
+                    </div>
+                  )}
+                  {strategyMessages.map((m, i) => (
+                    <div key={i} className={cn('rounded-lg px-3 py-2.5 text-sm', m.role === 'user' ? 'bg-primary/10 text-foreground ml-6' : 'bg-muted mr-4')}>
+                      <p className="text-xs font-semibold mb-1 text-muted-foreground">{m.role === 'user' ? 'You' : 'AI'}</p>
+                      <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
+                    </div>
+                  ))}
+                  {strategySending && (
+                    <div className="flex items-center gap-2 px-3 py-2 text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">{t('common.thinking', 'Thinking...')}</span>
+                    </div>
+                  )}
+                </div>
+                <form onSubmit={(e) => { e.preventDefault(); sendStrategyMessage() }} className="flex gap-1.5 shrink-0">
+                  <input value={strategyInput} onChange={(e) => setStrategyInput(e.target.value)} placeholder={t('strategy.inputPlaceholder', 'Ask strategy question...')} disabled={strategySending}
+                    className="flex-1 h-9 rounded-lg border border-border/50 bg-background px-3 text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:opacity-50" />
+                  <button type="submit" disabled={strategySending || !strategyInput.trim()} className="h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-40">
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
+            )}
 
             {/* Unified Context Tab */}
             {rightTab === 'context' && (

@@ -300,6 +300,11 @@ class MeetingSession:
             self._emit({"type": "suggestion_start", "line_id": ""})
             self._llm.enqueue_manual(text, ai_refine)
 
+    def handle_elaborate(self, previous_answer: str, original_question: str):
+        if self._llm:
+            self._emit({"type": "suggestion_start", "line_id": "", "is_elaborate": True})
+            self._llm.enqueue_elaborate(previous_answer, original_question)
+
     def handle_request_suggestion(self, text: str, romaji: str, line_id: str, length=None):
         """User explicitly requested a suggestion for a specific transcript line."""
         if not self._llm:

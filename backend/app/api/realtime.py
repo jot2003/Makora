@@ -154,6 +154,14 @@ async def meeting_ws(ws: WebSocket, token: str = Query(default="")):
                     session.set_max_speakers(n)
                 await ws.send_json({"type": "status", "message": f"Max speakers: {n}"})
 
+            elif msg_type == "elaborate":
+                prev_answer = msg.get("previous_answer", "")
+                orig_question = msg.get("original_question", "")
+                if session:
+                    await asyncio.to_thread(session.handle_elaborate, prev_answer, orig_question)
+                else:
+                    await ws.send_json({"type": "status", "message": "No active session"})
+
             elif msg_type in ("pin_suggestion", "dismiss_suggestion"):
                 pass
 

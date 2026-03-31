@@ -74,10 +74,15 @@
   },
   "tabs": {
     "context": "Context",
+    "strategy": "Strategy",
     "summary": "Summary",
     "actions": "Actions",
     "timeline": "Timeline",
     "decisions": "Decisions"
+  },
+  "strategy": {
+    "placeholder": "Ask the AI for strategy advice based on your meeting context",
+    "inputPlaceholder": "Ask strategy question..."
   },
   "intel": {
     "genSummary": "Generate Summary",

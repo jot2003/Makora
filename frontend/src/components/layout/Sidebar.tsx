@@ -30,7 +30,7 @@ export function Sidebar({ meetings, onRefresh }: SidebarProps) {
   const location = useLocation()
   const { t } = useTranslation()
   const { user, logout, getHeaders } = useAuth()
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
   const [mode, setMode] = useState<string>('interview')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [userMenuOpen, setUserMenuOpen] = useState(false)

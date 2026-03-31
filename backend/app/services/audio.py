@@ -14,8 +14,9 @@ from scipy.signal import resample_poly
 
 TARGET_SAMPLE_RATE = 16000
 
-ECHO_ENERGY_RATIO = 0.35
+ECHO_ENERGY_RATIO = 0.25
 ECHO_WINDOW_MS = 80
+ECHO_GATE_GRACE_SEC = 4.0
 
 
 class DualAudioCapture:
@@ -124,6 +125,7 @@ class DualAudioCapture:
             status_parts.append(f"Mic: {mic_name}")
         self._on_status("Audio: " + " + ".join(status_parts))
 
+        start_time = time.monotonic()
         lb_q: queue.Queue = queue.Queue(maxsize=30)
         mic_q: queue.Queue = queue.Queue(maxsize=30)
 
@@ -158,7 +160,8 @@ class DualAudioCapture:
                 if mic_pcm:
                     mic_rms = self._rms(mic_pcm)
 
-                    if self._echo_gate_enabled and self._lb_rms_recent > 300:
+                    in_grace = (time.monotonic() - start_time) < ECHO_GATE_GRACE_SEC
+                    if self._echo_gate_enabled and not in_grace and self._lb_rms_recent > 300:
                         if mic_rms < self._lb_rms_recent * ECHO_ENERGY_RATIO:
                             continue
 

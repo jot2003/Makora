@@ -88,7 +88,9 @@ class LLMEngine:
         self._thread: threading.Thread | None = None
 
     def set_answer_length(self, length):
-        if isinstance(length, int):
+        if length == 0 or length == "auto":
+            self._answer_length = 0
+        elif isinstance(length, int):
             self._answer_length = max(1, min(10, length))
         elif isinstance(length, str):
             _LEGACY_MAP = {"short": 2, "standard": 3, "detailed": 6}
@@ -135,6 +137,14 @@ class LLMEngine:
 
     def enqueue_manual(self, text: str, ai_refine: bool):
         self._queue.append({"type": "manual", "text": text, "ai_refine": ai_refine})
+        self._event.set()
+
+    def enqueue_elaborate(self, previous_answer: str, original_question: str):
+        self._queue.append({
+            "type": "elaborate",
+            "previous_answer": previous_answer,
+            "original_question": original_question,
+        })
         self._event.set()
 
     def add_user_speech(self, ja: str, vi: str):
@@ -206,6 +216,8 @@ class LLMEngine:
             try:
                 if item.get("type") == "manual":
                     self._process_manual(item)
+                elif item.get("type") == "elaborate":
+                    self._process_elaborate(item)
                 else:
                     self._process_answer(item)
             except Exception as e:
@@ -226,6 +238,8 @@ class LLMEngine:
 
     @staticmethod
     def _length_instruction(n: int) -> str:
+        if n == 0:
+            return "- Determine answer length based on question complexity. Simple questions: 1-2 concise sentences. Complex questions: 4-6 sentences with concrete examples."
         if n <= 2:
             return f"- Answer in {n} short sentence(s). Be concise, no extra detail."
         if n <= 5:
@@ -234,6 +248,8 @@ class LLMEngine:
 
     @staticmethod
     def _max_tokens_for_length(n: int) -> int:
+        if n == 0:
+            return 1200
         return max(300, n * 200)
 
     _JP_LEVEL_INSTRUCTIONS = {
@@ -552,6 +568,12 @@ class LLMEngine:
 
         if lang == "Japanese" and ja_buffer.strip():
             self._flush_ja_buffer(ja_buffer, all_romaji_parts)
+
+        parsed = self._parse_manual_result(collected, text)
+        if parsed.get("answer_vi") != text or parsed.get("answer_romaji"):
+            self._on_manual_result({**parsed, "original_text": text})
+            return
+
         final_romaji = " ".join(all_romaji_parts) if lang == "Japanese" else "".join(all_romaji_parts)
         if not all_vi:
             _, all_vi = self._parse_answer(collected)
@@ -605,3 +627,138 @@ class LLMEngine:
             "answer_ja": result.get("answer_ja", ""),
             "answer_romaji": result.get("answer_romaji", ""),
         }
+
+    def _process_elaborate(self, item: dict):
+        """Generate a deeper, more detailed answer building on the previous one."""
+        prev = item["previous_answer"]
+        question = item.get("original_question", "")
+        lang = self._source_language_name
+        t0 = time.time()
+
+        parts = [
+            "Expert interview coach. The candidate already gave an answer but the interviewer wants more depth.",
+            "Build on the previous answer — add specific details, concrete examples, numbers, and technical depth.",
+            "Do NOT repeat what was already said. Only add NEW information that deepens the answer.",
+        ]
+        if lang == "Japanese":
+            jp_level = self._JP_LEVEL_INSTRUCTIONS.get(self._jp_level, self._JP_LEVEL_INSTRUCTIONS["natural"])
+            parts += [
+                "", "FORMAT — output TWO blocks separated by ---VI--- :",
+                "[Elaborated Japanese answer — continuation, not repetition]",
+                "---VI---",
+                "[Vietnamese translation]",
+                "", jp_level,
+            ]
+        else:
+            parts.append(f"\nAnswer in {lang}. Then add Vietnamese translation after ---VI---.")
+
+        if self._personal_info:
+            parts.append(f"\nCandidate background: {self._personal_info[:2000]}")
+        if self._company_info:
+            parts.append(f"\nCompany info: {self._company_info[:1500]}")
+
+        system_prompt = "\n".join(parts)
+        user_msg = f"Question: {question}\n\nPrevious answer: {prev}\n\nElaborate with more depth and detail."
+
+        is_reasoning = _is_reasoning_model(self._active_deployment)
+        create_kwargs = {
+            "model": self._active_deployment,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_msg},
+            ],
+            "max_completion_tokens": 1500,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        if not is_reasoning:
+            create_kwargs["temperature"] = 0.7
+
+        usage_data = {}
+        collected = ""
+        all_romaji_parts: list[str] = []
+        all_vi = ""
+        delim_switched = False
+        ja_buffer = ""
+        ja_token_count = 0
+
+        try:
+            stream = self._create_with_fallback(create_kwargs)
+            for chunk in stream:
+                if not self._running:
+                    return
+                if hasattr(chunk, "usage") and chunk.usage:
+                    usage_data = {
+                        "prompt_tokens": chunk.usage.prompt_tokens or 0,
+                        "completion_tokens": chunk.usage.completion_tokens or 0,
+                        "total_tokens": chunk.usage.total_tokens or 0,
+                    }
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if not (delta and delta.content):
+                    continue
+                token = delta.content
+                collected += token
+
+                if not delim_switched:
+                    found = _find_delim(collected)
+                    if found:
+                        delim_switched = True
+                        if lang == "Japanese" and ja_buffer.strip():
+                            self._flush_ja_buffer(ja_buffer, all_romaji_parts)
+                            ja_buffer = ""
+                        after = collected.split(found, 1)[1].lstrip("\n")
+                        after = _strip_section_prefix(after)
+                        if after:
+                            all_vi += after
+                            self._on_answer_streaming("answer_vi", after)
+                        continue
+
+                if not delim_switched:
+                    if lang == "Japanese":
+                        ja_buffer += token
+                        ja_token_count += 1
+                        if any(c in token for c in _JA_SENTENCE_END) or ja_token_count >= _ROMAJI_FLUSH_TOKENS:
+                            self._flush_ja_buffer(ja_buffer, all_romaji_parts)
+                            ja_buffer = ""
+                            ja_token_count = 0
+                    else:
+                        clean = _strip_section_prefix(token) if not all_romaji_parts else token
+                        if clean:
+                            all_romaji_parts.append(clean)
+                            self._on_answer_streaming("answer_romaji", clean)
+                else:
+                    all_vi += token
+                    self._on_answer_streaming("answer_vi", token)
+
+        except Exception as e:
+            print(f"  [LLM ELABORATE ERR] {e}", file=sys.stderr)
+            self._on_error(f"Elaborate: {str(e)[:60]}")
+            return
+
+        latency_ms = int((time.time() - t0) * 1000)
+        if usage_data:
+            usage_data["model"] = self._active_deployment
+            usage_data["latency_ms"] = latency_ms
+            usage_data["request_type"] = "elaborate"
+            try:
+                self._on_usage(usage_data)
+            except Exception:
+                pass
+
+        if lang == "Japanese" and ja_buffer.strip():
+            self._flush_ja_buffer(ja_buffer, all_romaji_parts)
+        final_romaji = " ".join(all_romaji_parts) if lang == "Japanese" else "".join(all_romaji_parts)
+        if not all_vi:
+            _, all_vi = self._parse_answer(collected)
+        if lang == "Japanese" and all_vi:
+            all_vi = self._clean_vi(all_vi)
+        final_romaji = _clean_romaji(_strip_section_prefix(final_romaji))
+        all_vi = _strip_section_prefix(all_vi).strip()
+
+        result = {
+            "answer_vi": all_vi,
+            "answer_ja": "",
+            "answer_romaji": final_romaji,
+            "is_elaborate": True,
+        }
+        self._on_tier2_result(result)

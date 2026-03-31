@@ -1,0 +1,295 @@
+================================================================================
+  MAKORA — AI-Powered Real-Time Interview & Meeting Assistant
+  Project Summary (updated 2026-03-25)
+================================================================================
+
+1. OVERVIEW
+───────────────────────────────────────────────────────────────────────────────
+Makora is a full-stack AI application that records, transcribes, translates,
+and provides intelligent suggestions during live interviews and meetings in
+real-time. It combines Azure Speech-to-Text, Azure OpenAI (GPT-4o), speaker
+diarization, and Retrieval-Augmented Generation (RAG) into a single platform.
+
+GitHub: https://github.com/jot2003/Makora
+
+
+2. TECH STACK
+───────────────────────────────────────────────────────────────────────────────
+Frontend:
+  - React 19 + TypeScript + Vite 6
+  - Tailwind CSS 3.4 + shadcn-style components
+  - Zustand 5 (state management)
+  - Electron 33 (desktop overlay mode)
+  - react-i18next (EN / VI / JA)
+  - Recharts (usage dashboard)
+  - Framer Motion (animations)
+
+Backend:
+  - Python 3.12 + FastAPI + Uvicorn
+  - WebSocket (real-time bidirectional communication)
+  - SQLAlchemy + SQLite
+  - Azure Cognitive Services Speech SDK
+  - Azure OpenAI SDK (streaming + non-streaming)
+  - PyAudioWPatch (WASAPI loopback audio capture)
+  - pyannote.audio 3.x (speaker diarization)
+  - FAISS (vector similarity search)
+  - pykakasi (Japanese romaji conversion)
+  - PyJWT + bcrypt (authentication)
+
+DevOps:
+  - Docker (multi-stage builds, nginx reverse proxy)
+  - docker-compose (backend + frontend orchestration)
+  - GitHub Actions CI (lint, test, build, Docker)
+  - Vitest (frontend unit testing)
+
+
+3. PROJECT STRUCTURE
+───────────────────────────────────────────────────────────────────────────────
+Makora/
+├── .github/workflows/ci.yml          # CI pipeline
+├── docker-compose.yml                # Container orchestration
+│
+├── backend/
+│   ├── Dockerfile                    # Python 3.12-slim
+│   ├── requirements.txt              # Full dependencies (Windows dev)
+│   ├── requirements.docker.txt       # Docker-compatible dependencies
+│   ├── .env.example                  # All env vars documented
+│   └── app/
+│       ├── main.py                   # FastAPI entry point, CORS, routers
+│       ├── core/
+│       │   └── config.py             # Settings from env vars
+│       ├── models/
+│       │   ├── database.py           # SQLAlchemy models (13 tables)
+│       │   └── schemas.py            # Pydantic request/response schemas
+│       ├── api/
+│       │   ├── auth.py               # JWT auth, OAuth (Google/GitHub)
+│       │   ├── meetings.py           # Meeting CRUD + ownership checks
+│       │   ├── realtime.py           # WebSocket endpoint (JWT-protected)
+│       │   ├── intelligence.py       # Post-meeting AI analysis
+│       │   ├── settings.py           # User settings + AI provider mgmt
+│       │   ├── context.py            # Notes, glossary, documents
+│       │   ├── chat.py               # RAG chat & semantic search
+│       │   ├── upload.py             # Audio/video upload + transcription
+│       │   └── usage.py              # LLM token usage statistics
+│       └── services/
+│           ├── meeting_session.py    # Full meeting lifecycle orchestrator
+│           ├── audio.py              # WASAPI loopback + mic capture
+│           ├── stt.py                # Azure Speech (3 recognizer modes)
+│           ├── llm.py                # LLM streaming engine
+│           ├── suggestion.py         # Suggestion controller (aggregation)
+│           ├── stabilizer.py         # Conversation stabilization pipeline
+│           ├── diarizer.py           # Speaker diarization (pyannote)
+│           ├── pregen.py             # Pre-generated answer caching
+│           ├── embedding.py          # Text chunking + FAISS indexing
+│           ├── rag.py                # RAG Q&A with source citations
+│           ├── intelligence.py       # Summary/actions/decisions/timeline
+│           ├── documents.py          # PDF/DOCX text extraction
+│           └── transcribe_file.py    # Offline file transcription
+│
+├── frontend/
+│   ├── Dockerfile                    # Node 20 build + nginx serve
+│   ├── nginx.conf                    # Reverse proxy + SPA fallback
+│   ├── vitest.config.ts              # Test configuration
+│   ├── .env.example                  # VITE_API_URL docs
+│   └── src/
+│       ├── App.tsx                   # Router setup
+│       ├── main.tsx                  # Entry point
+│       ├── i18n/
+│       │   ├── index.ts              # i18n config (en, vi, ja)
+│       │   ├── en.json               # English translations
+│       │   ├── vi.json               # Vietnamese translations
+│       │   └── ja.json               # Japanese translations
+│       ├── stores/
+│       │   ├── useMeeting.ts         # Meeting state (transcript, suggestions)
+│       │   ├── useWebSocket.ts       # WS connection + auto-reconnect
+│       │   ├── useAuth.ts            # JWT auth state
+│       │   └── useTheme.ts           # Dark/light mode
+│       ├── pages/
+│       │   ├── Dashboard.tsx         # New session + upload
+│       │   ├── MeetingRoom.tsx       # Live transcript + AI suggestions
+│       │   ├── ChatPage.tsx          # RAG knowledge chat
+│       │   ├── UsageDashboard.tsx    # Token usage charts
+│       │   ├── SettingsPage.tsx      # AI providers + overlay + audio
+│       │   ├── LoginPage.tsx         # Login (local + OAuth)
+│       │   └── RegisterPage.tsx      # Registration
+│       ├── components/
+│       │   ├── layout/               # AppLayout, Sidebar
+│       │   ├── ui/                   # Button, Card, Select, Badge, etc.
+│       │   └── overlay/              # Electron overlay window
+│       ├── lib/
+│       │   └── utils.ts              # cn(), API_BASE, WS_BASE
+│       └── test/
+│           ├── setup.ts              # Vitest setup
+│           ├── useMeeting.test.ts    # 10 tests
+│           └── useAuth.test.ts       # 8 tests
+│
+└── jd/                               # Reference job descriptions
+
+
+4. KEY FEATURES
+───────────────────────────────────────────────────────────────────────────────
+Real-Time Meeting Assistant:
+  - Live transcription with Azure Speech SDK (3 recognizer modes)
+  - Speaker diarization via pyannote.audio 3.x
+  - Conversation stabilization (prefix-locking, display throttling)
+  - Final-only translation policy (reduces noise)
+  - AI answer suggestions (streaming, with romaji + Vietnamese)
+  - Echo cancellation (energy-based gate)
+  - Manual "Answer this question" per transcript line
+  - Dynamic LLM model switching (env + user DB providers)
+  - Adjustable answer length (1-10 sentences) and Japanese level
+  - Pre-generated answers with semantic caching (FAISS)
+
+Post-Meeting Intelligence:
+  - Structured summary (overview, key topics, decisions, risks, next steps)
+  - Action item extraction (task, owner, deadline, priority)
+  - Decision tracking with context
+  - Meeting timeline with topic segments
+
+Knowledge Copilot (RAG):
+  - Chat with meeting transcripts (source citations)
+  - Cross-meeting semantic search
+  - Auto-indexing after upload (FAISS + text-embedding-3-small)
+
+Authentication & Security:
+  - JWT-based auth (register, login, token refresh)
+  - OAuth integration (Google, GitHub)
+  - WebSocket JWT validation via query string
+  - Per-user meeting data isolation (ownership checks)
+  - Configurable CORS origins
+
+Internationalization:
+  - 3 languages: English, Vietnamese, Japanese
+  - Full UI translation (145+ keys per language)
+  - Cyclic language switcher (EN → VI → JA)
+
+Desktop Features:
+  - Electron overlay (always-on-top captions)
+  - Configurable font size, opacity, max history lines
+
+Dashboard & Analytics:
+  - LLM token usage tracking per model
+  - Cost estimation charts (area, pie, bar)
+  - Recent request history
+
+
+5. DATABASE MODELS (SQLite)
+───────────────────────────────────────────────────────────────────────────────
+  User              — id, email, username, hashed_password, provider, avatar
+  Meeting           — id, user_id (FK), name, mode, language, status
+  TranscriptEntry   — meeting_id (FK), speaker, text, romaji, translations
+  SessionNote       — meeting_id (FK), category, content
+  GlossaryEntry     — meeting_id (FK), jp, reading, vi
+  SessionDocument   — meeting_id (FK), filename, category, extracted_text
+  UserSettings      — user_id (FK), settings_json
+  AIProvider        — user_id (FK), name, provider_type, api_key, endpoint
+  LLMUsageLog       — model, prompt/completion tokens, cost, latency
+  PreGeneratedAnswer— meeting_id, question_ja, answers, embedding
+
+
+6. API ENDPOINTS (52 routes)
+───────────────────────────────────────────────────────────────────────────────
+Auth:       POST /api/auth/register, /login, GET /me, OAuth /google, /github
+Meetings:   CRUD /api/meetings, /transcript, /transcript/export
+Context:    /api/meetings/{id}/notes, /glossary, /documents
+Intelligence: /api/meetings/{id}/summary, /actions, /timeline, /decisions
+Settings:   GET/PUT /api/settings, /providers CRUD, /models
+RAG:        POST /api/chat, /search, /meetings/{id}/index
+Upload:     POST /api/upload (audio/video → STT → DB)
+Usage:      GET /api/usage/summary, /daily, /recent
+WebSocket:  WS /ws/meeting (real-time pipeline, JWT-protected)
+Health:     GET /health
+
+
+7. WEBSOCKET PROTOCOL
+───────────────────────────────────────────────────────────────────────────────
+Connection: ws://host/ws/meeting?token=<JWT>
+
+Client → Server:
+  start_meeting, stop_meeting, ping, switch_language, switch_model,
+  toggle_suggestions, request_suggestion, manual_answer,
+  set_answer_length, set_jp_level, set_max_speakers
+
+Server → Client:
+  interim, final, translation, suggestion_start, suggestion_chunk,
+  suggestion_done, now_discussing, model_switched, status, pong, error
+
+
+8. DOCKER DEPLOYMENT
+───────────────────────────────────────────────────────────────────────────────
+  docker-compose up --build
+
+  Services:
+    backend  — Python 3.12-slim, port 8000, health check, data volume
+    frontend — Node 20 build → nginx, port 3000, proxies /api/ and /ws/
+
+  Environment:
+    backend/.env       — Azure keys, JWT secret, CORS origins
+    VITE_API_URL=""    — Frontend uses nginx proxy (relative URLs)
+
+
+9. CI/CD (GitHub Actions)
+───────────────────────────────────────────────────────────────────────────────
+  Triggers: push to main, pull requests
+
+  Jobs:
+    backend  — Python 3.12, pip install, verify app loads
+    frontend — Node 20, npm ci, tsc --noEmit, vitest run, vite build
+    docker   — Build both Docker images (after lint/test pass)
+
+
+10. COMMIT HISTORY
+───────────────────────────────────────────────────────────────────────────────
+  95cccca  Initial commit: Makora - AI-powered real-time interview assistant
+  3af2307  Add Docker support and centralize API config
+  0801842  Add auth hardening and per-user data isolation
+  9ab8aef  Wire user DB providers into runtime LLM engine
+  c13ecf5  Add Vitest setup and unit tests for Zustand stores
+  23e0cfa  Add Japanese i18n support
+  20b212e  Add GitHub Actions CI pipeline
+
+
+11. RECENT CHANGES (Phase 1–6)
+───────────────────────────────────────────────────────────────────────────────
+Phase 1 — Docker & Deployment:
+  - Backend Dockerfile (Python 3.12-slim, system deps for Azure Speech SDK)
+  - Frontend Dockerfile (Node 20 multi-stage build → nginx:alpine)
+  - docker-compose.yml with health checks and persistent volumes
+  - nginx reverse proxy (API/WS proxy, SPA fallback, static asset caching)
+  - Centralized frontend API base URL via VITE_API_URL env var
+  - Backend CORS_ORIGINS now configurable via environment
+  - .dockerignore + .env.example for both services
+
+Phase 2 — Security Hardening:
+  - WebSocket endpoint validates JWT token from ?token= query string
+  - Meeting CRUD endpoints enforce per-user ownership via _get_owned_meeting
+  - All frontend API calls consistently send Authorization headers
+  - WebSocket auto-appends JWT token on connect and reconnect
+  - OAuth redirect URL configurable via FRONTEND_URL env var
+
+Phase 3 — AI Provider Wiring:
+  - /api/settings/models returns both env-based and user DB providers
+  - switch_model supports "db:<id>" prefix for user-configured providers
+  - MeetingSession can hot-swap to DB provider credentials at runtime
+
+Phase 4 — Frontend Testing:
+  - Vitest 1.x configured with jsdom environment
+  - 10 unit tests for useMeeting store (transcript, suggestions, lifecycle)
+  - 8 unit tests for useAuth store (login, register, token, headers)
+  - All 18 tests passing
+
+Phase 5 — Japanese i18n:
+  - Full ja.json translation (145+ keys)
+  - Registered in i18n config alongside EN and VI
+  - LanguageSwitcher cycles EN → VI → JA
+
+Phase 6 — CI/CD:
+  - GitHub Actions workflow (.github/workflows/ci.yml)
+  - 3 parallel jobs: backend lint, frontend lint+test+build, Docker build
+  - Triggers on push to main and pull requests
+
+
+================================================================================
+  Stats: 32 Python files, 29 TypeScript/React files, 3 i18n languages,
+         52 API routes, 18 unit tests, 7 commits
+================================================================================

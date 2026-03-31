@@ -74,10 +74,15 @@
   },
   "tabs": {
     "context": "コンテキスト",
+    "strategy": "戦略",
     "summary": "要約",
     "actions": "アクション",
     "timeline": "タイムライン",
     "decisions": "決定事項"
+  },
+  "strategy": {
+    "placeholder": "会議のコンテキストに基づいてAIに戦略アドバイスを求める",
+    "inputPlaceholder": "戦略に関する質問を入力..."
   },
   "intel": {
     "genSummary": "要約を生成",
