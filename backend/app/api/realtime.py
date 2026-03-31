@@ -148,6 +148,18 @@ async def meeting_ws(ws: WebSocket, token: str = Query(default="")):
                     session.set_jp_level(level)
                 await ws.send_json({"type": "jp_level_changed", "level": level})
 
+            elif msg_type == "set_en_level":
+                level = msg.get("level", "professional")
+                if session:
+                    session.set_en_level(level)
+                await ws.send_json({"type": "en_level_changed", "level": level})
+
+            elif msg_type == "set_vi_level":
+                level = msg.get("level", "professional")
+                if session:
+                    session.set_vi_level(level)
+                await ws.send_json({"type": "vi_level_changed", "level": level})
+
             elif msg_type == "set_max_speakers":
                 n = int(msg.get("max_speakers", 2))
                 if session:

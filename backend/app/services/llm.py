@@ -75,6 +75,8 @@ class LLMEngine:
         self._has_romaji = True
         self._answer_length: int = 3
         self._jp_level = "natural"
+        self._en_level = "professional"
+        self._vi_level = "professional"
         self._high_event = threading.Event()
         self._low_event = threading.Event()
         self._low_cancel = threading.Event()
@@ -134,6 +136,20 @@ class LLMEngine:
 
     def get_jp_level(self) -> str:
         return self._jp_level
+
+    def set_en_level(self, level: str):
+        if level in ("simple", "professional", "conversational"):
+            self._en_level = level
+
+    def get_en_level(self) -> str:
+        return self._en_level
+
+    def set_vi_level(self, level: str):
+        if level in ("simple", "professional", "conversational"):
+            self._vi_level = level
+
+    def get_vi_level(self) -> str:
+        return self._vi_level
 
     def enqueue(self, ja: str, romaji_azure: str, vi_azure: str):
         self._low_cancel.set()
@@ -284,6 +300,18 @@ class LLMEngine:
         "formal": "LEVEL: Full business keigo (尊敬語/謙譲語/丁寧語). Formal interview register.",
     }
 
+    _EN_LEVEL_INSTRUCTIONS = {
+        "simple": "LEVEL: Simple English. Short sentences. Common vocabulary only. Avoid idioms and complex grammar.",
+        "professional": "LEVEL: Professional business English. Polished vocabulary, confident tone, structured responses.",
+        "conversational": "LEVEL: Conversational English. Friendly and relaxed tone, natural contractions, approachable style.",
+    }
+
+    _VI_LEVEL_INSTRUCTIONS = {
+        "simple": "LEVEL: Tiếng Việt đơn giản. Câu ngắn, từ vựng phổ thông, tránh thuật ngữ chuyên ngành.",
+        "professional": "LEVEL: Tiếng Việt chuyên nghiệp. Ngôn từ trang trọng, cấu trúc rõ ràng, phong cách công sở.",
+        "conversational": "LEVEL: Tiếng Việt tự nhiên. Giọng thân thiện, gần gũi, sử dụng ngôn ngữ đời thường.",
+    }
+
     def _build_system_prompt(self, lang: str) -> str:
         length_instr = self._length_instruction(self._answer_length)
 
@@ -304,6 +332,7 @@ class LLMEngine:
                 'RHYTHM: Insert " / " between phrases for natural breath pauses.',
             ]
         elif lang == "English":
+            en_level = self._EN_LEVEL_INSTRUCTIONS.get(self._en_level, self._EN_LEVEL_INSTRUCTIONS["professional"])
             parts = [
                 "Interview answer coach. Vietnamese candidate, English interview.",
                 "Suggest a natural spoken answer.",
@@ -313,7 +342,21 @@ class LLMEngine:
                 "[Vietnamese translation — normal spacing, translate only, NO explanation]",
                 "", "CRITICAL: Do NOT write 'SECTION', 'Part', labels, or markdown.",
                 "", "LENGTH:", length_instr,
-                "", "STYLE: natural spoken English, polite, use candidate's real info.",
+                "", en_level,
+                "", "STYLE: natural spoken English, use candidate's real info.",
+                'RHYTHM: Insert " / " between phrases for natural breath pauses.',
+            ]
+        elif lang == "Vietnamese":
+            vi_level = self._VI_LEVEL_INSTRUCTIONS.get(self._vi_level, self._VI_LEVEL_INSTRUCTIONS["professional"])
+            parts = [
+                "Interview answer coach. Vietnamese candidate, Vietnamese interview.",
+                "Suggest a natural spoken answer in Vietnamese.",
+                "", "FORMAT — output the answer directly in Vietnamese. NO translation block needed.",
+                "", "CRITICAL: Do NOT write 'SECTION', 'Part', labels, or markdown.",
+                "", "LENGTH:", length_instr,
+                "", vi_level,
+                "", "STYLE: natural spoken Vietnamese, use candidate's real info.",
+                'RHYTHM: Insert " / " between phrases for natural breath pauses.',
             ]
         else:
             parts = [
@@ -674,6 +717,21 @@ class LLMEngine:
                 "---VI---",
                 "[Vietnamese translation]",
                 "", jp_level,
+            ]
+        elif lang == "English":
+            en_level = self._EN_LEVEL_INSTRUCTIONS.get(self._en_level, self._EN_LEVEL_INSTRUCTIONS["professional"])
+            parts += [
+                "", "FORMAT — output TWO blocks separated by ---VI--- :",
+                "[Elaborated English answer — continuation, not repetition]",
+                "---VI---",
+                "[Vietnamese translation]",
+                "", en_level,
+            ]
+        elif lang == "Vietnamese":
+            vi_level = self._VI_LEVEL_INSTRUCTIONS.get(self._vi_level, self._VI_LEVEL_INSTRUCTIONS["professional"])
+            parts += [
+                "", "FORMAT — output directly in Vietnamese. No translation block needed.",
+                "", vi_level,
             ]
         else:
             parts.append(f"\nAnswer in {lang}. Then add Vietnamese translation after ---VI---.")

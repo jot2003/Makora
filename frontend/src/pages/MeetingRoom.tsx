@@ -50,6 +50,8 @@ export default function MeetingRoom() {
   const [answerLength, setAnswerLength] = useState<number | 'auto'>(3)
   const [firstAudioReceived, setFirstAudioReceived] = useState(false)
   const [jpLevel, setJpLevel] = useState<'simple' | 'natural' | 'formal'>('natural')
+  const [enLevel, setEnLevel] = useState<'simple' | 'professional' | 'conversational'>('professional')
+  const [viLevel, setViLevel] = useState<'simple' | 'professional' | 'conversational'>('professional')
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [strategyMessages, setStrategyMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
   const [strategyInput, setStrategyInput] = useState('')
@@ -336,6 +338,8 @@ export default function MeetingRoom() {
   }
 
   const switchJpLevel = (level: string) => { setJpLevel(level as 'simple' | 'natural' | 'formal'); send({ type: 'set_jp_level', level }) }
+  const switchEnLevel = (level: string) => { setEnLevel(level as 'simple' | 'professional' | 'conversational'); send({ type: 'set_en_level', level }) }
+  const switchViLevel = (level: string) => { setViLevel(level as 'simple' | 'professional' | 'conversational'); send({ type: 'set_vi_level', level }) }
 
   const requestSuggestion = (lineId: string, text: string, romaji: string, length?: string) => {
     if (!suggestionsEnabled) return
@@ -401,6 +405,8 @@ export default function MeetingRoom() {
 
   const activeModelLabel = availableModels.find(m => m.id === activeModel)?.label || activeModel
   const jpLevelLabels: Record<string, string> = { simple: t('meeting.simpleJp'), natural: t('meeting.naturalJp'), formal: t('meeting.formalJp') }
+  const enLevelLabels: Record<string, string> = { simple: t('meeting.simpleEn', 'Simple EN'), professional: t('meeting.professionalEn', 'Professional EN'), conversational: t('meeting.conversationalEn', 'Casual EN') }
+  const viLevelLabels: Record<string, string> = { simple: t('meeting.simpleVi', 'Đơn giản'), professional: t('meeting.professionalVi', 'Chuyên nghiệp'), conversational: t('meeting.conversationalVi', 'Tự nhiên') }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -516,6 +522,22 @@ export default function MeetingRoom() {
               <Dropdown trigger={<Chip icon={<Languages className="w-3.5 h-3.5" />}>{jpLevelLabels[jpLevel]}</Chip>}>
                 {(['simple', 'natural', 'formal'] as const).map(lvl => (
                   <DropdownItem key={lvl} active={jpLevel === lvl} onClick={() => switchJpLevel(lvl)}>{jpLevelLabels[lvl]}</DropdownItem>
+                ))}
+              </Dropdown>
+            )}
+
+            {meeting.language.startsWith('en') && (
+              <Dropdown trigger={<Chip icon={<Languages className="w-3.5 h-3.5" />}>{enLevelLabels[enLevel]}</Chip>}>
+                {(['simple', 'professional', 'conversational'] as const).map(lvl => (
+                  <DropdownItem key={lvl} active={enLevel === lvl} onClick={() => switchEnLevel(lvl)}>{enLevelLabels[lvl]}</DropdownItem>
+                ))}
+              </Dropdown>
+            )}
+
+            {meeting.language.startsWith('vi') && (
+              <Dropdown trigger={<Chip icon={<Languages className="w-3.5 h-3.5" />}>{viLevelLabels[viLevel]}</Chip>}>
+                {(['simple', 'professional', 'conversational'] as const).map(lvl => (
+                  <DropdownItem key={lvl} active={viLevel === lvl} onClick={() => switchViLevel(lvl)}>{viLevelLabels[lvl]}</DropdownItem>
                 ))}
               </Dropdown>
             )}

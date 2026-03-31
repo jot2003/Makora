@@ -447,6 +447,16 @@ class MeetingSession:
             self._llm.set_jp_level(level)
             self._emit({"type": "status", "message": f"JP level: {level}"})
 
+    def set_en_level(self, level: str):
+        if self._llm:
+            self._llm.set_en_level(level)
+            self._emit({"type": "status", "message": f"EN level: {level}"})
+
+    def set_vi_level(self, level: str):
+        if self._llm:
+            self._llm.set_vi_level(level)
+            self._emit({"type": "status", "message": f"VI level: {level}"})
+
     def append_context_note(self, text: str):
         """Append text to the general session notes (context-only mode)."""
         try:
