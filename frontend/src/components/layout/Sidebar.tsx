@@ -124,8 +124,12 @@ export function Sidebar({ meetings, onRefresh }: SidebarProps) {
               currentMeetingId === m.id ? 'bg-primary/10 text-primary font-medium border-l-2 border-primary' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
             )}
           >
-            {m.id.startsWith('upload_') ? <FileAudio className="w-4.5 h-4.5 shrink-0 opacity-60" /> : <Mic className="w-4.5 h-4.5 shrink-0 opacity-60" />}
-            <span className="text-[15px] truncate flex-1">{m.name}</span>
+            <div className="relative shrink-0">
+              {m.id.startsWith('upload_') ? <FileAudio className="w-4 h-4 opacity-60" /> : <Mic className="w-4 h-4 opacity-60" />}
+              {m.status === 'active' && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
+              {m.status === 'completed' && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-muted-foreground/40" />}
+            </div>
+            <span className="text-sm truncate flex-1">{m.name}</span>
             {hoveredId === m.id && (
               <button onClick={(e) => deleteMeeting(m.id, e)} className="p-0.5 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all">
                 <Trash2 className="w-3 h-3" />
@@ -176,9 +180,9 @@ export function Sidebar({ meetings, onRefresh }: SidebarProps) {
           <p className="text-xs text-muted-foreground/50 text-center py-8">{t('common.noSessionsYet')}</p>
         ) : (
           <>
-            {renderGroup('Today', grouped.today)}
-            {renderGroup('This week', grouped.week)}
-            {renderGroup('Older', grouped.older)}
+            {renderGroup(t('common.today', 'Today'), grouped.today)}
+            {renderGroup(t('common.thisWeek', 'This week'), grouped.week)}
+            {renderGroup(t('common.older', 'Older'), grouped.older)}
           </>
         )}
       </div>

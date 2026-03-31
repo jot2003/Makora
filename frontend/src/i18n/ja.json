@@ -52,7 +52,14 @@
     "interview": "面接",
     "meetingMode": "会議",
     "language": "言語",
-    "contextFedInfo": "コンテキストがAIに提供され、より良い提案が生成されます"
+    "contextFedInfo": "コンテキストがAIに提供され、より良い提案が生成されます",
+    "export": "エクスポート",
+    "aiMode": "AI回答",
+    "ctxMode": "メモ",
+    "settings": "設定",
+    "hideToolbar": "ツールバーを非表示",
+    "showToolbar": "ツールバーを表示",
+    "sentences": "文"
   },
   "context": {
     "myProfile": "プロフィール",
@@ -75,6 +82,7 @@
   "tabs": {
     "context": "コンテキスト",
     "strategy": "戦略",
+    "insights": "分析",
     "summary": "要約",
     "actions": "アクション",
     "timeline": "タイムライン",
@@ -146,6 +154,10 @@
   },
   "common": {
     "noSessionsYet": "セッションはまだありません",
-    "uploading": "アップロード中..."
+    "uploading": "アップロード中...",
+    "today": "今日",
+    "thisWeek": "今週",
+    "older": "以前",
+    "thinking": "考え中..."
   }
 }

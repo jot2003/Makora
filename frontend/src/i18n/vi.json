@@ -52,7 +52,14 @@
     "interview": "Phỏng vấn",
     "meetingMode": "Cuộc họp",
     "language": "Ngôn ngữ",
-    "contextFedInfo": "Ngữ cảnh được cung cấp cho AI để gợi ý tốt hơn"
+    "contextFedInfo": "Ngữ cảnh được cung cấp cho AI để gợi ý tốt hơn",
+    "export": "Xuất",
+    "aiMode": "AI Trả lời",
+    "ctxMode": "Ghi chú",
+    "settings": "Cài đặt",
+    "hideToolbar": "Thu gọn toolbar",
+    "showToolbar": "Hiện toolbar",
+    "sentences": "câu"
   },
   "context": {
     "myProfile": "Hồ sơ của tôi",
@@ -75,6 +82,7 @@
   "tabs": {
     "context": "Ngữ cảnh",
     "strategy": "Chiến lược",
+    "insights": "Phân tích",
     "summary": "Tóm tắt",
     "actions": "Hành động",
     "timeline": "Dòng thời gian",
@@ -146,6 +154,10 @@
   },
   "common": {
     "noSessionsYet": "Chưa có phiên nào",
-    "uploading": "Đang tải lên..."
+    "uploading": "Đang tải lên...",
+    "today": "Hôm nay",
+    "thisWeek": "Tuần này",
+    "older": "Cũ hơn",
+    "thinking": "Đang suy nghĩ..."
   }
 }

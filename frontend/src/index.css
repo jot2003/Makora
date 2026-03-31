@@ -106,3 +106,24 @@
     @apply bg-card/80 backdrop-blur-2xl border border-border/60;
   }
 }
+
+/* Content width utilities */
+@layer utilities {
+  .content-sm { max-width: 28rem; }
+  .content-md { max-width: 42rem; }
+  .content-lg { max-width: 64rem; }
+  .content-xl { max-width: 80rem; }
+}
+
+/* Page title hierarchy */
+@layer components {
+  .page-title {
+    @apply text-xl font-semibold tracking-tight;
+  }
+  .section-title {
+    @apply text-base font-semibold;
+  }
+  .section-subtitle {
+    @apply text-sm text-muted-foreground;
+  }
+}

@@ -52,7 +52,14 @@
     "interview": "Interview",
     "meetingMode": "Meeting",
     "language": "Language",
-    "contextFedInfo": "Context is fed to AI for better suggestions"
+    "contextFedInfo": "Context is fed to AI for better suggestions",
+    "export": "Export",
+    "aiMode": "AI Answer",
+    "ctxMode": "Context Note",
+    "settings": "Settings",
+    "hideToolbar": "Collapse toolbar",
+    "showToolbar": "Show toolbar",
+    "sentences": "sent."
   },
   "context": {
     "myProfile": "My Profile",
@@ -75,6 +82,7 @@
   "tabs": {
     "context": "Context",
     "strategy": "Strategy",
+    "insights": "Insights",
     "summary": "Summary",
     "actions": "Actions",
     "timeline": "Timeline",
@@ -146,6 +154,10 @@
   },
   "common": {
     "noSessionsYet": "No sessions yet",
-    "uploading": "Uploading..."
+    "uploading": "Uploading...",
+    "today": "Today",
+    "thisWeek": "This week",
+    "older": "Older",
+    "thinking": "Thinking..."
   }
 }

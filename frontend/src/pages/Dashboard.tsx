@@ -78,8 +78,8 @@ export default function Dashboard() {
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/10">
             <Zap className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">{t('dashboard.title')}</h1>
-          <p className="text-base text-muted-foreground mt-2">{t('dashboard.subtitle')}</p>
+          <h1 className="page-title text-2xl bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">{t('dashboard.title')}</h1>
+          <p className="section-subtitle mt-2">{t('dashboard.subtitle')}</p>
         </div>
 
         {/* Actions */}
@@ -132,7 +132,7 @@ export default function Dashboard() {
             <label
               htmlFor="file-upload"
               className={cn(
-                'h-11 px-5 rounded-xl text-sm font-medium flex items-center gap-2 cursor-pointer transition-all duration-200 border',
+                'h-12 px-5 rounded-xl text-sm font-medium flex items-center gap-2 cursor-pointer transition-all duration-200 border',
                 uploading
                   ? 'border-border text-muted-foreground cursor-wait'
                   : 'border-border text-foreground hover:bg-accent active:scale-[0.98]',
